@@ -637,7 +637,7 @@ function photoBlock(){
   const d = st.doc;
   const inp = el("input",{type:"file",id:"photoIn",accept:"image/*,application/pdf",multiple:true});
   const thumbs = el("div",{class:"thumbs",id:"thumbs"}, d.photos.map(p=>el("a",{href:"/_blob/"+p.id,target:"_blank",rel:"noopener"}, p.type==="application/pdf"?el("span",{class:"pill",text:"PDF"}):el("img",{src:"/_blob/"+p.id,alt:p.label||"Slip photo"}))));
-  inp.addEventListener("change", async ()=>{ for (const f of inp.files){ try{ setSave("Uploading…"); const r = await st.assets.upload(f); d.photos.push({id:r.id,label:f.name,type:r.contentType,by:st.me||null,at:new Date().toISOString()}); changed(); } catch(e){ banner("Photo not uploaded: "+(e&&e.code==="too_large"?"the file is over 20 MB.":e&&e.code==="unsupported_type"?"use a JPG, PNG or PDF.":"try again.")); } }
+  inp.addEventListener("change", async ()=>{ for (const f of inp.files){ try{ setSave("Uploading…"); const r = await st.assets.upload(f, f.type?undefined:{type:"image/jpeg"}); d.photos.push({id:r.id,label:f.name,type:r.contentType,by:st.me||null,at:new Date().toISOString()}); changed(); } catch(e){ banner("Photo not uploaded: "+(e&&e.code==="too_large"?"the file is over 20 MB.":e&&e.code==="unsupported_type"?"use a JPG, PNG or PDF.":"try again.")); } }
     inp.value=""; const nb=photoBlock(); $("photoBox").replaceWith(nb); applyLock(); });
   return el("div",{class:"stack",id:"photoBox","data-sec":"photos"}, el("label",{class:"f",for:"photoIn"},"Add photos of meters, drop slips, batch slips, gauge slips and delivery notes", inp), thumbs);
 }
