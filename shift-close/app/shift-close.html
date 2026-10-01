@@ -1,0 +1,551 @@
+<title>Perth Road Shift Close</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: one work column on phones; on wide screens the shift form sits left with the live result pinned right. */
+:root{
+  --bg:#f2f3ef; --surface:#ffffff; --sunk:#e9ebe5; --ink:#18211d; --muted:#5a665f; --line:#d6dbd2;
+  --accent:#1d5c86; --accent-ink:#ffffff; --good:#2c7a4b; --warn:#a86a12; --bad:#b3261e;
+  --good-bg:#e3f1e8; --warn-bg:#fbefd9; --bad-bg:#fbe4e1;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-head:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111513; --surface:#191f1c; --sunk:#222a26; --ink:#e4eae6; --muted:#97a39c; --line:#2d3631;
+  --accent:#74b3de; --accent-ink:#0d1a24; --good:#62c48d; --warn:#e3a84f; --bad:#f2786e;
+  --good-bg:#16301f; --warn-bg:#36280f; --bad-bg:#3a1714; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111513; --surface:#191f1c; --sunk:#222a26; --ink:#e4eae6; --muted:#97a39c; --line:#2d3631;
+  --accent:#74b3de; --accent-ink:#0d1a24; --good:#62c48d; --warn:#e3a84f; --bad:#f2786e;
+  --good-bg:#16301f; --warn-bg:#36280f; --bad-bg:#3a1714; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
+h1,h2,h3{font-family:var(--f-head);font-weight:600;text-wrap:balance;margin:0}
+h1{font-size:20px;letter-spacing:.01em} h2{font-size:17px} h3{font-size:15px}
+.num,input.n,td.n,.money{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:13px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.topin{max-width:1080px;margin:0 auto;padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:0;margin-right:auto}
+.brand .site{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+nav.tabs{display:flex;gap:4px;background:var(--sunk);padding:3px;border-radius:999px}
+nav.tabs button{border:0;background:transparent;color:var(--muted);font:500 14px var(--f-body);padding:6px 14px;border-radius:999px;cursor:pointer}
+nav.tabs button[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.save{font-size:12px;color:var(--muted);min-width:64px;text-align:right}
+.notice{margin:12px 0;padding:10px 12px;border-radius:var(--r);background:var(--warn-bg);color:var(--ink);border:1px solid var(--line)}
+button.btn{font:500 14px var(--f-body);border-radius:6px;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.btn.small{padding:4px 10px;font-size:13px}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+button.link{border:0;background:none;color:var(--accent);font:inherit;padding:0;cursor:pointer;text-decoration:underline}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.stack{display:flex;flex-direction:column;gap:12px}
+section.view{padding-top:16px}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px var(--f-body);letter-spacing:.03em;padding:2px 8px;border-radius:999px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)} .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.blue{background:var(--sunk);color:var(--accent)}
+.result{font:600 26px var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.result.good{color:var(--good)} .result.warn{color:var(--warn)} .result.bad{color:var(--bad)}
+ul.alerts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ul.alerts li{display:grid;grid-template-columns:8px 1fr;gap:10px;align-items:start;font-size:14px}
+ul.alerts li::before{content:"";width:8px;height:8px;border-radius:2px;margin-top:6px;background:var(--muted)}
+ul.alerts li.red::before{background:var(--bad)} ul.alerts li.amber::before{background:var(--warn)} ul.alerts li.info::before{background:var(--line)}
+.shiftcard{display:flex;flex-direction:column;gap:10px}
+.shiftcard .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tablewrap{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font:600 12px var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+.brief{white-space:pre-wrap;font:14px/1.5 var(--f-body);background:var(--sunk);border-radius:6px;padding:12px;margin:0}
+/* shift form */
+.shiftlayout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:900px){.shiftlayout{grid-template-columns:minmax(0,1fr) 340px}.side{position:sticky;top:76px;align-self:start;max-height:calc(100vh - 92px);overflow:auto}}
+details.sec{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.sec>summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary h3::before{content:"▸";display:inline-block;width:16px;color:var(--muted);transition:transform .15s}
+details.sec[open]>summary h3::before{transform:rotate(90deg)}
+details.sec .body{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
+.sum{font:500 13px var(--f-num);color:var(--muted);text-align:right}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+input,select{font:15px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input.n{text-align:right}
+input.bad{border-color:var(--bad);background:var(--bad-bg)}
+input:disabled,select:disabled{opacity:.75}
+table.lines td{padding:4px}
+table.lines input,table.lines select{padding:6px 8px}
+.x{border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1}
+.stepper{display:flex;gap:0;flex-wrap:wrap;font-size:13px}
+.stepper span{padding:4px 10px;border:1px solid var(--line);margin-left:-1px;color:var(--muted);background:var(--surface)}
+.stepper span:first-child{border-radius:6px 0 0 6px;margin-left:0}.stepper span:last-child{border-radius:0 6px 6px 0}
+.stepper span.done{color:var(--good)} .stepper span.now{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:14px}
+.kv .n{text-align:right}
+.kv .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:600}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.thumbs a img{width:88px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.pumpcell{white-space:nowrap}.pumpcell small{display:block;color:var(--muted);font-size:12px}
+.mbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;justify-content:space-between}
+.mbar .result{font-size:18px}
+@media (min-width:900px){.mbar{display:none}}
+.empty{padding:20px;text-align:center;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top"><div class="topin">
+  <div class="brand"><span class="site">TotalEnergies Perth Road · Westdene</span><h1>Shift Close</h1></div>
+  <nav class="tabs" aria-label="Sections">
+    <button id="tab-today" data-tab="today" aria-current="page">Today</button>
+    <button id="tab-shift" data-tab="shift">Shift</button>
+    <button id="tab-settings" data-tab="settings">Settings</button>
+  </nav>
+  <span class="save" id="saveState" aria-live="polite"></span>
+</div></header>
+
+<div class="wrap">
+  <div id="banner"></div>
+
+  <section class="view" id="view-today">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div class="row"><label class="f" for="dayPick" style="flex-direction:row;align-items:center;gap:8px"><span>Fuel day (06:00 to 06:00)</span>
+        <input type="date" id="dayPick" style="width:auto"></label></div>
+      <div class="row"><button class="btn" id="newDay">Start day shift</button><button class="btn" id="newNight">Start night shift</button></div>
+    </div>
+    <div class="grid2" id="dayCards"><div class="panel empty">Loading shifts…</div></div>
+    <div class="panel stack" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between"><h2>Fuel, 24 hours</h2><span class="small muted">Opening tanks at the day shift start, closing at the night shift end</span></div>
+      <div class="tablewrap" id="fuelDay"></div>
+      <ul class="alerts" id="fuelDayAlerts"></ul>
+    </div>
+    <div class="panel stack" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between"><h2>Morning brief</h2><button class="btn small" id="copyBrief">Copy</button></div>
+      <pre class="brief" id="brief">Pick a fuel day to see its brief.</pre>
+    </div>
+    <div class="panel stack" style="margin-top:12px">
+      <h2>Recent shifts</h2>
+      <div class="tablewrap" id="recent"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-shift" hidden>
+    <div id="shiftEmpty" class="panel empty">Choose a shift on the Today tab, or start a new one.</div>
+    <div id="shiftWrap" hidden>
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <div class="stack" style="gap:4px"><h2 id="shiftTitle"></h2><div class="stepper" id="stepper"></div></div>
+        <div class="row" id="actions"></div>
+      </div>
+      <div id="reopenBox" class="panel row" hidden style="margin-bottom:10px">
+        <label class="f" for="reopenReason" style="flex:1">Reason for reopening (kept in the history)<input id="reopenReason" type="text" placeholder="e.g. Batch 862 amount entered wrongly"></label>
+        <button class="btn primary" id="reopenGo">Reopen shift</button><button class="btn" id="reopenCancel">Cancel</button>
+      </div>
+      <div class="shiftlayout">
+        <div class="stack" id="form"></div>
+        <aside class="side stack" id="side"></aside>
+      </div>
+      <div class="mbar" id="mbar"><span class="result" id="mbarRes">—</span><span class="row"><span id="mbarPills"></span><button class="btn small" id="mbarGo">See checks</button></span></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-settings" hidden>
+    <div class="stack" id="settingsForm"></div>
+  </section>
+</div>
+
+<script>"use strict";var Engine=(()=>{var q=Object.defineProperty;var pe=Object.getOwnPropertyDescriptor;var me=Object.getOwnPropertyNames;var de=Object.prototype.hasOwnProperty;var fe=(t,s)=>{for(var a in s)q(t,a,{get:s[a],enumerable:!0})},he=(t,s,a,n)=>{if(s&&typeof s=="object"||typeof s=="function")for(let p of me(s))!de.call(t,p)&&p!==a&&q(t,p,{get:()=>s[p],enumerable:!(n=pe(s,p))||n.enumerable});return t};var ge=t=>he(q({},"__esModule",{value:!0}),t);var be={};fe(be,{evaluateFuelDay:()=>ce,evaluateShift:()=>ue,litres:()=>re,rand:()=>se,showLitres:()=>P,showRand:()=>g});function ne(t,s){var m;let a=String(t).replace(/[R,\s]/g,""),n=/^(-)?(\d+)(?:\.(\d{1,2}))?$/.exec(a);if(!n)throw new Error(`Invalid ${s}: "${t}"`);let p=Number(n[2]),o=Number(((m=n[3])!=null?m:"0").padEnd(2,"0")),S=p*100+o;return n[1]?-S:S}var se=t=>ne(t,"amount"),re=t=>ne(t,"volume"),R=t=>{for(let s of t)if(!Number.isInteger(s))throw new Error(`Non-integer value ${s}`);return t.reduce((s,a)=>s+a,0)},z=t=>{let s=t<0?"-":"",a=Math.abs(t),n=String(Math.floor(a/100)).replace(/\B(?=(\d{3})+(?!\d))/g,",");return`${s}${n}.${String(a%100).padStart(2,"0")}`},g=t=>t<0?`-R${z(-t)}`:`R${z(t)}`,P=t=>`${z(t)} L`;var E=t=>R(t.map(s=>s.amount));function ae(t){var d,D,$,v;let s=t.payouts,a=[...s.customerRebates,...s.taxiRebates,...s.bowserRebates,...s.expenses],n={safeDrops:R(t.safeDrops),coins:t.coins,cardBatches:E(t.cardBatches),vouchers:E(t.vouchers),totalCard:E(t.totalCard),localAccounts:t.pos.localAccountTotal,unpaids:E(t.unpaids),unpaidPaid:E(t.unpaidPaid),payouts:E(a)},p=n.safeDrops+n.coins+n.cardBatches+n.vouchers+n.totalCard+n.localAccounts+n.unpaids-n.unpaidPaid+n.payouts,o=t.pos.salesTotal-p,S=o===0?"Balanced":o>0?`Short ${g(o)}`:`Over ${g(-o)}`,m=[],u=(f,x,h,y)=>{let k=x-h;m.push({name:f,status:k===0?"match":"mismatch",difference:k,detail:k===0?`${y} match (${g(x)})`:`${y} differ by ${g(k)} (${g(x)} vs ${g(h)})`})};u("Safe drops",n.safeDrops,t.pos.safeDropTotal,"Drop slips and POS safe drops"),u("Payouts",n.payouts,t.pos.payoutTotal,"Payout sheets and POS pay-outs"),a.length!==t.pos.payoutCount?m.push({name:"Payout count",status:"mismatch",detail:`${a.length} payout lines vs ${t.pos.payoutCount} on POS`}):m.push({name:"Payout count",status:"match",detail:`${a.length} payout lines`}),t.localAccountSheetTotal===void 0?m.push({name:"Local accounts",status:"not-checked",detail:"No account sheet total entered"}):u("Local accounts",t.localAccountSheetTotal,t.pos.localAccountTotal,"Account sheets and POS local accounts");let U=t.submittingCashier.posCashierNo===t.pos.cashierNo;m.push({name:"POS login",status:U?"match":"mismatch",detail:U?`POS login ${t.pos.cashierNo} belongs to ${t.submittingCashier.name}`:`POS login ${t.pos.cashierNo} ("${t.pos.cashierName}") but shift submitted by ${t.submittingCashier.name}`});for(let f of[...s.customerRebates,...s.taxiRebates,...s.bowserRebates]){let x=(v=(D=t.rebateRates)==null?void 0:D[`${f.customer}|${(d=f.grade)!=null?d:"*"}`])!=null?v:($=t.rebateRates)==null?void 0:$[`${f.customer}|*`];if(x===void 0||f.litres===void 0){m.push({name:`Rebate rate: ${f.customer}`,status:"not-checked",detail:f.litres===void 0?"No litres recorded":"No agreed rate on file"});continue}let h=Math.floor(f.litres*x/100),y=f.amount-h;m.push({name:`Rebate rate: ${f.customer}`,status:y===0?"match":"mismatch",difference:y,detail:y===0?`Paid ${g(f.amount)} at agreed rate`:`Paid ${g(f.amount)}, agreed rate gives ${g(h)}`})}return{shiftNo:t.shiftNo,accounted:p,shortOver:o,label:S,components:n,checks:m}}function oe(t,s){return[...new Set(t.map(n=>n.grade))].map(n=>{let p=t.filter(u=>u.grade===n);for(let u of p){if(!Number.isInteger(u.opening)||!Number.isInteger(u.closing))throw new Error(`Pump ${u.pump}: meter readings must be whole litres`);if(u.closing<u.opening)throw new Error(`Pump ${u.pump}: closing ${u.closing} is below opening ${u.opening}`)}let o=R(p.map(u=>(u.closing-u.opening)*100)),S=o-s[n],m=p.length*100;return{grade:n,pumps:p.length,meterLitres:o,posLitres:s[n],difference:S,withinRounding:Math.abs(S)<=m}})}function J(t){let s=t.openingTC+t.delivered-t.posSold,a=t.closingTC-s,n=t.posSold===0?0:a/t.posSold*100;return{expectedClosing:s,variance:a,pctOfSales:n}}function ie(t){let s=t.gaugeTCIncrease-t.truckMeter20C,a=s/t.truckMeter20C*100;return{tank:t.tank,difference:s,pct:a,flagged:Math.abs(a)>1}}function le(t,s){let a=Object.keys(s).map(Number).filter(n=>t[n]!==void 0&&t[n]!==s[n]).map(n=>({pump:n,previousClosing:t[n],opening:s[n],gap:s[n]-t[n]}));return{ok:a.length===0,breaks:a}}var _={D50:"Diesel 50",ULP95:"ULP 95",ULP93:"ULP 93"},i=t=>typeof t=="number"&&Number.isFinite(t)?t:null,j=(t="")=>t.trim().toLowerCase();function ue(t,s,a){var L,b,G,I,W,T,K,Q,X,Y,Z,ee,te;let n=[],p=[],o=t.pos||{};i(o.sales)===null&&p.push("POS sales total");let S=(e="",r="")=>{let c=Object.keys(s.rates).find(l=>{let[O,C]=l.split("|");return j(O)===j(e)&&(C===r||C==="*")});return c?s.rates[c]:void 0},m=s.staff.find(e=>j(e.name)===j(t.cashierName)),u=e=>{var r;return{label:e.who||e.type,customer:e.type==="taxi"?"Taxi":e.who||"",amount:e.amt,litres:(r=i(e.litres))!=null?r:void 0,grade:e.grade||void 0}},U={"Taxi|*":s.taxiRate};for(let e of t.payouts)if(e.type==="customer"||e.type==="bowser"){let r=S(e.who,e.grade||"");r!==void 0&&(U[`${e.who}|${e.grade||"*"}`]=r)}let d=ae({shiftNo:Number(t.posShiftNo)||0,submittingCashier:{name:t.cashierName||"",posCashierNo:(L=m==null?void 0:m.posNo)!=null?L:t.cashierPosNo},pos:{cashierNo:o.cashierNo||"",cashierName:o.cashierName||"",salesTotal:(b=i(o.sales))!=null?b:0,safeDropTotal:(G=i(o.safeDrops))!=null?G:0,payoutTotal:(I=i(o.payouts))!=null?I:0,payoutCount:(W=i(o.payoutCount))!=null?W:0,localAccountTotal:(K=(T=i(o.localAccounts))!=null?T:i(t.localSheet))!=null?K:0},safeDrops:t.drops.map(e=>e.amt),coins:(Q=i(t.coins))!=null?Q:0,cardBatches:t.batches.map(e=>({label:e.ref||"batch",amount:e.amt})),vouchers:t.vouchers.map(e=>({label:e.ref||"voucher",amount:e.amt})),totalCard:t.totalCard.map(e=>({label:e.ref||"Total Card",amount:e.amt})),localAccountSheetTotal:(X=i(t.localSheet))!=null?X:void 0,unpaids:t.unpaids.map(e=>({label:e.who,amount:e.amt,kind:e.kind||"customer"})),unpaidPaid:t.unpaidPaid.map(e=>({label:e.who,amount:e.amt})),payouts:{customerRebates:t.payouts.filter(e=>e.type==="customer").map(u),taxiRebates:t.payouts.filter(e=>e.type==="taxi").map(u),bowserRebates:t.payouts.filter(e=>e.type==="bowser").map(u),expenses:t.payouts.filter(e=>e.type==="expense").map(e=>({label:e.who||"expense",amount:e.amt}))},rebateRates:U}),D=d.checks.filter(e=>{var r;return e.name==="Safe drops"?i(o.safeDrops)!==null:e.name.startsWith("Payout")?i(o.payouts)!==null&&(e.name!=="Payout count"||i(o.payoutCount)!==null):e.name==="Local accounts"?i(o.localAccounts)!==null:e.name==="POS login"?!!o.cashierNo&&!!((r=m==null?void 0:m.posNo)!=null?r:t.cashierPosNo):!0});if(o.cashierNo){let e=s.staff.find(r=>r.posNo===o.cashierNo);e&&j(e.name)!==j(t.cashierName)&&!D.some(r=>r.name==="POS login")&&n.push({level:"red",area:"cash",text:`POS login ${o.cashierNo} belongs to ${e.name}, but this shift was worked by ${t.cashierName||"someone else"}`})}let $=null,v=null;if(i(o.cash)!==null&&($=o.cash-d.components.safeDrops-d.components.coins),i(o.cards)!==null&&(v=o.cards-(d.components.cardBatches+d.components.vouchers+d.components.totalCard+d.components.unpaids-d.components.unpaidPaid)),i(o.sales)!==null){let e=Math.abs(d.shortOver);e>s.tol.cashRed?n.push({level:"red",area:"cash",text:`Cash-up: ${d.label}`}):e>s.tol.cashAmber&&n.push({level:"amber",area:"cash",text:`Cash-up: ${d.label}`}),$!==null&&v!==null&&Math.abs($)>=1e4&&Math.abs(v)>=1e4&&Math.sign($)!==Math.sign(v)&&n.push({level:"info",area:"cash",text:`Cash ${$>0?"short":"over"} ${g(Math.abs($))} offset by cards ${v>0?"short":"over"} ${g(Math.abs(v))}. If this is not how unpaids were rung up, check for sales on the wrong payment type.`})}for(let e of D)e.status==="mismatch"&&n.push({level:e.name.startsWith("Rebate")?"amber":"red",area:"cash",text:`${e.name}: ${e.detail}`});t.drops.forEach((e,r)=>{i(e.slip)!==null&&e.slip!==e.amt&&n.push({level:"red",area:"cash",text:`Safe drop ${r+1}: drop R${(e.amt/100).toFixed(2)} but Deposita slip says R${(e.slip/100).toFixed(2)}`})});let f=t.totalCard.map((e,r)=>{let c=e.grade?s.totalCardRebate[e.grade]:void 0;if(i(e.cardAmt)===null||i(e.litres)===null||c===void 0)return{i:r,ok:null};let l=e.amt-e.cardAmt,O=Math.round(e.litres*c/1e3),C=Math.abs(l-O)<=1;return C||n.push({level:"red",area:"cash",text:`Total Card ${e.ref||r+1}: rebate ${g(l)} but agreed rate gives ${g(O)}`}),{i:r,ok:C,rebate:l,expected:O}}),x=Object.entries(t.pumps||{}).filter(([,e])=>i(e==null?void 0:e.open)!==null&&i(e==null?void 0:e.close)!==null).map(([e,r])=>({pump:Number(e),grade:s.pumps[e],opening:r.open,closing:r.close})),h=Object.keys(s.pumps).filter(e=>!x.some(r=>r.pump===Number(e)));h.length&&p.push(`pump readings (${h.join(", ")})`);for(let e of x)e.closing<e.opening&&n.push({level:"red",area:"paperwork",text:`Pump ${e.pump}: closing ${e.closing} is below opening ${e.opening}`});let y=x.filter(e=>e.closing>=e.opening),k=o.litres||{},F=[];for(let e of["D50","ULP95","ULP93"]){let r=y.filter(C=>C.grade===e);if(!r.length)continue;let c=i(k[e]);if(c===null){F.push({grade:e,meterLitres:R(r.map(C=>(C.closing-C.opening)*100)),posLitres:null,difference:null,withinRounding:null});continue}let[l]=oe(r,{D50:0,ULP95:0,ULP93:0,[e]:c});F.push(l);let O=c?Math.abs(l.difference)/c*100:0;l.withinRounding||n.push({level:"amber",area:"fuel",text:`${_[e]}: pumps dispensed ${P(l.meterLitres)}, POS sold ${P(c)} (${l.difference>0?"+":""}${P(l.difference)})`})}let B=null;if(a){let e={},r={};for(let[c,l]of Object.entries(a.pumps||{}))i(l==null?void 0:l.close)!==null&&(e[Number(c)]=l.close);for(let[c,l]of Object.entries(t.pumps||{}))i(l==null?void 0:l.open)!==null&&(r[Number(c)]=l.open);B=le(e,r);for(let c of B.breaks)n.push({level:"red",area:"paperwork",text:`Pump ${c.pump}: opening ${c.opening} does not match previous closing ${c.previousClosing} (${c.gap>0?"+":""}${c.gap} L)`})}let N=[],M=((Y=t.tanks)==null?void 0:Y.open)||{},A=((Z=t.tanks)==null?void 0:Z.close)||{};for(let e of["D50","ULP95","ULP93"]){let r=Object.keys(s.tanks).filter(w=>s.tanks[w].grade===e);if(!r.length||r.some(w=>i(M[w])===null||i(A[w])===null)||i(k[e])===null)continue;let c=R(r.map(w=>M[w])),l=R(r.map(w=>A[w])),O=R((t.deliveries||[]).filter(w=>r.includes(String(w.tank))).map(w=>w.truck)),C=J({openingTC:c,delivered:O,posSold:k[e],closingTC:l});N.push({grade:e,opening:c,delivered:O,sold:k[e],closing:l,...C}),Math.abs(C.pctOfSales)>s.tol.tankPct&&Math.abs(C.variance)>r.length*500&&n.push({level:"amber",area:"fuel",text:`${_[e]} tanks this shift: ${C.variance<0?"loss":"gain"} of ${P(Math.abs(C.variance))} (${C.pctOfSales.toFixed(2)}% of sales)`})}N.length||p.push("tank gauge readings (opening and closing)");let H=(t.deliveries||[]).filter(e=>i(e.gauge)!==null&&e.truck>0).map(e=>{let r=ie({tank:Number(e.tank),truckMeter20C:e.truck,gaugeTCIncrease:e.gauge});return Math.abs(r.pct)>s.tol.dropPct&&n.push({level:"amber",area:"fuel",text:`Delivery to tank ${e.tank}: gauge rose ${P(e.gauge)}, truck meter ${P(e.truck)} (${r.pct>0?"+":""}${r.pct.toFixed(1)}%)`}),r});for(let e of t.unpaids)e.kind==="staff-overfill"&&n.push({level:"info",area:"cash",text:`Staff overfill: ${e.who} ${g(e.amt)}`});let V={red:0,amber:1,info:2};return n.sort((e,r)=>V[e.level]-V[r.level]),{cash:{...d,checks:D,cashSide:$,cardSide:v},totalCard:f,fuel:{grades:F,tanks:N,deliveries:H},continuity:B,alerts:n,missing:p,worst:(te=(ee=n.find(e=>e.level!=="info"))==null?void 0:ee.level)!=null?te:"ok"}}function ce(t,s,a){var S,m,u,U,d,D,$,v,f,x;let n=[],p=[];for(let h of["D50","ULP95","ULP93"]){let y=Object.keys(a.pumps).filter(b=>a.pumps[b]===h),k=0;for(let b of y){let G=i((m=(S=t.pumps)==null?void 0:S[b])==null?void 0:m.open),I=i((U=(u=s.pumps)==null?void 0:u[b])==null?void 0:U.close);if(G===null||I===null){k=null;break}k+=(I-G)*100}let F=i((D=(d=t.pos)==null?void 0:d.litres)==null?void 0:D[h]),B=i((v=($=s.pos)==null?void 0:$.litres)==null?void 0:v[h]),N=F!==null&&B!==null?F+B:null,M=k!==null&&N!==null?k-N:null;if(M!==null&&N){let b=Math.abs(M)/N*100;Math.abs(M)>y.length*100&&n.push({level:b>a.tol.pumpPct?"red":"amber",area:"fuel",text:`${_[h]}: pumps dispensed ${P(k)}, POS sold ${P(N)} (${M>0?"+":""}${P(M)})`})}let A=Object.keys(a.tanks).filter(b=>a.tanks[b].grade===h),H=((f=t.tanks)==null?void 0:f.open)||{},V=((x=s.tanks)==null?void 0:x.close)||{},L=null;if(A.length&&A.every(b=>i(H[b])!==null&&i(V[b])!==null)&&N!==null){let b=R(A.map(T=>H[T])),G=R(A.map(T=>V[T])),I=R([...t.deliveries||[],...s.deliveries||[]].filter(T=>A.includes(String(T.tank))).map(T=>T.truck));L={opening:b,delivered:I,closing:G,...J({openingTC:b,delivered:I,posSold:N,closingTC:G})};let W=Math.abs(L.pctOfSales);W>a.tol.tankPct&&Math.abs(L.variance)>A.length*500&&n.push({level:W>.5?"red":"amber",area:"fuel",text:`${_[h]} tanks, 24 h: ${L.variance<0?"loss":"gain"} of ${P(Math.abs(L.variance))} (${L.pctOfSales.toFixed(2)}% of sales)`})}p.push({grade:h,meter:k,pos:N,pumpDiff:M,tank:L})}let o={red:0,amber:1,info:2};return n.sort((h,y)=>o[h.level]-o[y.level]),{grades:p,alerts:n}}return ge(be);})();
+</script>
+<script>
+(function(){
+"use strict";
+const E = window.Engine;
+const GRADES = ["D50","ULP95","ULP93"], GN = {D50:"Diesel 50",ULP95:"ULP 95",ULP93:"ULP 93"};
+const STATUSES = ["open","submitted","reconciled","signed"];
+const STATUS_LABEL = {open:"Open",submitted:"Submitted",reconciled:"Reconciled",signed:"Signed off"};
+const DEFAULT_SETTINGS = {
+  pumps:{"1":"ULP95","2":"D50","3":"D50","4":"ULP95","5":"D50","6":"ULP93","7":"D50","8":"ULP95","9":"ULP95","10":"D50"},
+  tanks:{"1":{grade:"D50",capacity:22730},"2":{grade:"ULP95",capacity:22730},"3":{grade:"D50",capacity:13640},"4":{grade:"ULP93",capacity:8590},"5":{grade:"D50",capacity:13640}},
+  rates:{}, taxiRate:80, totalCardRebate:{D50:4585},
+  tol:{cashAmber:0,cashRed:500,pumpPct:0.25,tankPct:0.3,dropPct:1}, staff:[]
+};
+const st = { db:null, user:null, assets:null, me:null, canWrite:null, shifts:{}, settings:DEFAULT_SETTINGS, settingsLoaded:false,
+  tab:"today", day:null, curId:null, doc:null, saving:false, dirty:false, saveTimer:null, readOnly:false };
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs, ...kids) => { const e = document.createElement(tag);
+  if (attrs) for (const [k,v] of Object.entries(attrs)) { if (v==null||v===false) continue;
+    if (k==="class") e.className=v; else if (k==="text") e.textContent=v; else if (k.startsWith("on")) e.addEventListener(k.slice(2),v); else e.setAttribute(k, v===true?"":v); }
+  for (const k of kids.flat()) if (k!=null) e.append(k.nodeType?k:document.createTextNode(String(k)));
+  return e; };
+const fmtR = (c) => c==null ? "" : E.showRand(c);
+const fmtL = (cl) => cl==null ? "" : E.showLitres(cl);
+const fix2 = (v) => v==null ? "" : (v/100).toFixed(2);
+const shiftId = (date, period) => `${date}_${period}`;
+const parseDate = (s) => { const [y,m,d]=s.split("-").map(Number); return new Date(Date.UTC(y,m-1,d)); };
+const addDays = (s, n) => { const d=parseDate(s); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+const prettyDate = (s) => parseDate(s).toLocaleDateString("en-ZA",{weekday:"short",day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+const todaySAST = () => { const d=new Date(Date.now()+2*3600e3 - 6*3600e3); return d.toISOString().slice(0,10); }; // fuel day starts 06:00
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const prevOf = (doc) => doc.period==="night" ? st.shifts[shiftId(doc.date,"day")] : st.shifts[shiftId(addDays(doc.date,-1),"night")];
+function emptyShift(date, period){
+  const prev = prevOf({date,period});
+  const pumps = {}; for (const p of Object.keys(st.settings.pumps)) pumps[p] = {open: prev?.pumps?.[p]?.close ?? null, close:null};
+  const open = {}; for (const t of Object.keys(st.settings.tanks)) open[t] = prev?.tanks?.close?.[t] ?? null;
+  return { date, period, status:"open", cashierName:"", posShiftNo:"", pumps,
+    pos:{sales:null,cash:null,cards:null,localAccounts:null,safeDrops:null,payouts:null,payoutCount:null,cashierNo:"",cashierName:"",litres:{D50:null,ULP95:null,ULP93:null}},
+    drops:[], coins:null, batches:[], vouchers:[], totalCard:[], localSheet:null, unpaids:[], unpaidPaid:[], payouts:[],
+    tanks:{open, close:{}}, deliveries:[], photos:[], events:[] };
+}
+function normalize(d){
+  const b = emptyShift(d.date, d.period);
+  const o = Object.assign(b, clone(d));
+  o.pos = Object.assign(b.pos, o.pos||{}); o.pos.litres = Object.assign({D50:null,ULP95:null,ULP93:null}, o.pos.litres||{});
+  for (const k of ["drops","batches","vouchers","totalCard","unpaids","unpaidPaid","payouts","deliveries","photos","events"]) if(!Array.isArray(o[k])) o[k]=[];
+  o.tanks = o.tanks||{open:{},close:{}}; o.tanks.open=o.tanks.open||{}; o.tanks.close=o.tanks.close||{};
+  o.status = o.status||"open";
+  return o;
+}
+function evalDoc(d){ try { return E.evaluateShift(d, st.settings, prevOf(d)||null); } catch(e){ console.error(e); return null; } }
+function level(r){ if(!r) return ""; if (r.alerts.some(a=>a.level==="red")) return "bad"; if (r.alerts.some(a=>a.level==="amber")) return "warn"; return "good"; }
+function resultText(r, d){ if(!r || d.pos?.sales==null) return "Not reconciled yet"; return r.cash.label; }
+
+/* ---------- saving ---------- */
+function setSave(t){ $("saveState").textContent=t; }
+function scheduleSave(){ if(st.readOnly) return; st.dirty=true; setSave("Unsaved"); clearTimeout(st.saveTimer); st.saveTimer=setTimeout(flush, 700); }
+async function flush(){
+  if (!st.db || !st.doc || st.saving || !st.dirty) return;
+  st.saving=true; st.dirty=false; setSave("Saving…");
+  const id = st.curId, body = clone(st.doc);
+  try { await st.db.doc("shifts/"+id).set(body); setSave("Saved"); }
+  catch(e){ handleWriteError(e); st.dirty=true; }
+  finally { st.saving=false; if(st.dirty && !st.readOnly) st.saveTimer=setTimeout(flush, 1200); }
+}
+function handleWriteError(e){
+  console.error(e);
+  if (e && e.code==="invalid_argument"){ st.readOnly=true; setSave("Read only"); banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); applyLock(); }
+  else if (e && e.code==="quota_exceeded") banner("Storage is full. Tell Abdul so old records can be archived.");
+  else setSave("Not saved, retrying");
+}
+function banner(t){ $("banner").replaceChildren(t?el("div",{class:"notice",text:t}):""); }
+async function addEvent(action, note){
+  st.doc.events = st.doc.events||[];
+  st.doc.events.push({action, by: st.me||null, at:new Date().toISOString(), note: note||""});
+}
+
+/* ---------- tabs ---------- */
+function showTab(t){ st.tab=t;
+  const mb=$("mbar"); if(mb) mb.hidden = t!=="shift";
+  for (const v of ["today","shift","settings"]) { $("view-"+v).hidden = v!==t; $("tab-"+v).setAttribute("aria-current", v===t?"page":"false"); }
+  if (t==="today") renderToday(); if (t==="shift") renderShift(); if (t==="settings") renderSettings();
+  try{ localStorage.setItem("sc.tab", t); }catch(e){}
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+
+/* ---------- Today ---------- */
+function shiftCard(date, period){
+  const d = st.shifts[shiftId(date,period)];
+  const title = period==="day" ? "Day shift · 06:00–18:00" : "Night shift · 18:00–06:00";
+  if (!d) return el("div",{class:"panel shiftcard"},
+    el("div",{class:"head"},el("h3",{text:title}),el("span",{class:"pill",text:"Not started"})),
+    el("div",{class:"muted small",text:"No record for this shift yet."}),
+    el("div",{}, el("button",{class:"btn",onclick:()=>startShift(date,period),disabled:st.readOnly||!st.db},"Start this shift")));
+  const r = evalDoc(normalize(d)), lv = level(r);
+  const reds = r? r.alerts.filter(a=>a.level==="red"):[], ambers = r? r.alerts.filter(a=>a.level==="amber"):[];
+  return el("div",{class:"panel shiftcard"},
+    el("div",{class:"head"},el("h3",{text:title}),el("span",{class:"pill "+(d.status==="signed"?"good":"blue"),text:STATUS_LABEL[d.status||"open"]})),
+    el("div",{class:"row",style:"justify-content:space-between"},
+      el("div",{class:"result "+(d.pos?.sales==null?"":lv),text:resultText(r,d)}),
+      el("div",{class:"small muted",text:[d.cashierName||"Cashier not set", d.posShiftNo?("POS shift "+d.posShiftNo):""].filter(Boolean).join(" · ")})),
+    el("div",{class:"row"}, reds.length?el("span",{class:"pill bad",text:reds.length+" red"}):null, ambers.length?el("span",{class:"pill warn",text:ambers.length+" amber"}):null,
+      r&&r.missing.length?el("span",{class:"pill",text:r.missing.length+" missing"}):null),
+    reds.length? el("ul",{class:"alerts"}, reds.slice(0,3).map(a=>el("li",{class:"red",text:a.text}))):null,
+    el("div",{}, el("button",{class:"btn primary",onclick:()=>openShift(shiftId(date,period))},"Open shift")));
+}
+function renderToday(){
+  if(!st.dayChosen) st.day = latestDay() || todaySAST();
+  $("dayPick").value = st.day;
+  $("dayCards").replaceChildren(shiftCard(st.day,"day"), shiftCard(st.day,"night"));
+  const day = st.shifts[shiftId(st.day,"day")], night = st.shifts[shiftId(st.day,"night")];
+  let fd = null;
+  if (day && night){ try{ fd = E.evaluateFuelDay(normalize(day), normalize(night), st.settings); }catch(e){ console.error(e); } }
+  if (fd){
+    const t = el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Grade"}),el("th",{class:"n",text:"Pumps"}),el("th",{class:"n",text:"POS sold"}),el("th",{class:"n",text:"Pumps − POS"}),el("th",{class:"n",text:"Delivered"}),el("th",{class:"n",text:"Tank variance"}))),
+      el("tbody",{}, fd.grades.map(g=>el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meter)}),el("td",{class:"n",text:fmtL(g.pos)}),
+        el("td",{class:"n",text:g.pumpDiff==null?"":(g.pumpDiff>0?"+":"")+fmtL(g.pumpDiff)}),el("td",{class:"n",text:g.tank?fmtL(g.tank.delivered):""}),
+        el("td",{class:"n",text:g.tank?((g.tank.variance>0?"+":"")+fmtL(g.tank.variance)+" ("+g.tank.pctOfSales.toFixed(2)+"%)"):"needs gauge readings"})))));
+    $("fuelDay").replaceChildren(t);
+    $("fuelDayAlerts").replaceChildren(...fd.alerts.map(a=>el("li",{class:a.level,text:a.text})));
+  } else { $("fuelDay").replaceChildren(el("div",{class:"empty small",text:"Shows once both shifts for this day are entered."})); $("fuelDayAlerts").replaceChildren(); }
+  $("brief").textContent = brief(st.day, day, night, fd);
+  const ids = Object.keys(st.shifts).sort().reverse().slice(0,20);
+  if(!ids.length){ $("recent").replaceChildren(el("div",{class:"empty",text:"No shifts yet. Start the day shift above to enter the first one."})); return; }
+  $("recent").replaceChildren(el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Shift"}),el("th",{text:"Cashier"}),el("th",{text:"Status"}),el("th",{class:"n",text:"Result"}),el("th",{text:"Alerts"}))),
+    el("tbody",{}, ids.map(id=>{ const d=st.shifts[id], r=evalDoc(normalize(d)); const reds=r?r.alerts.filter(a=>a.level==="red").length:0, amb=r?r.alerts.filter(a=>a.level==="amber").length:0;
+      return el("tr",{}, el("td",{}, el("button",{class:"link",onclick:()=>openShift(id)}, prettyDate(d.date)+" "+d.period)), el("td",{text:d.cashierName||""}),
+        el("td",{text:STATUS_LABEL[d.status||"open"]}), el("td",{class:"n",text:resultText(r,d)}),
+        el("td",{}, reds?el("span",{class:"pill bad",text:reds+" red"}):null," ", amb?el("span",{class:"pill warn",text:amb+" amber"}):null)); }))));
+}
+function latestDay(){ const ids=Object.keys(st.shifts).sort(); return ids.length? st.shifts[ids[ids.length-1]].date : null; }
+function brief(date, day, night, fd){
+  const parts = [`Perth Road, ${prettyDate(date)}.`];
+  const res = (d,label)=>{ if(!d) return `${label}: not entered`; const r=evalDoc(normalize(d)); return `${label}: ${d.pos?.sales==null?"not reconciled":r.cash.label.toLowerCase()}`; };
+  parts.push("Cash: "+res(day,"day")+", "+res(night,"night")+".");
+  if (fd){ const f = fd.grades.filter(g=>g.tank).map(g=>`${GN[g.grade]} ${g.tank.variance>0?"+":""}${fmtL(g.tank.variance)}`); if(f.length) parts.push("Fuel 24 h: "+f.join(", ")+".");
+    const del = fd.grades.reduce((a,g)=>a+(g.tank?g.tank.delivered:0),0); if(del) parts.push(`Delivered: ${fmtL(del)}.`); }
+  const reds = []; for (const [d,lab] of [[day,"Day"],[night,"Night"]]) if(d){ const r=evalDoc(normalize(d)); if(r) r.alerts.filter(a=>a.level==="red").forEach(a=>reds.push(`${lab}: ${a.text}`)); }
+  if (fd) fd.alerts.filter(a=>a.level==="red").forEach(a=>reds.push(a.text));
+  parts.push(reds.length? "\nTo check:\n- "+reds.join("\n- ") : "\nNothing red.");
+  return parts.join(" ");
+}
+$("dayPick").addEventListener("change",(e)=>{ if(e.target.value){ st.day=e.target.value; st.dayChosen=true; renderToday(); }});
+$("newDay").addEventListener("click",()=>startShift(st.day||todaySAST(),"day"));
+function nextOpenDay(){ return st.day||todaySAST(); }
+$("newNight").addEventListener("click",()=>startShift(st.day||todaySAST(),"night"));
+$("copyBrief").addEventListener("click",async (ev)=>{ const t=$("brief").textContent; try{ await navigator.clipboard.writeText(t); ev.target.textContent="Copied"; setTimeout(()=>ev.target.textContent="Copy",1500);}catch(e){ const r=document.createRange(); r.selectNodeContents($("brief")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); ev.target.textContent="Press Ctrl+C"; } });
+
+async function startShift(date, period){
+  const id = shiftId(date,period);
+  if (st.shifts[id]) return openShift(id);
+  if (!st.db) return;
+  const d = emptyShift(date, period);
+  d.events = [{action:"Started", by:st.me||null, at:new Date().toISOString(), note:""}];
+  try { await st.db.doc("shifts/"+id).set(d); st.shifts[id]=d; openShift(id); } catch(e){ handleWriteError(e); }
+}
+function openShift(id){ if (st.dirty) flush(); st.curId=id; st.doc = normalize(st.shifts[id]); buildForm(); showTab("shift"); }
+
+/* ---------- Shift form ---------- */
+function renderShift(){ const has=!!st.doc; $("shiftEmpty").hidden=has; $("shiftWrap").hidden=!has; }
+const locked = () => st.readOnly || (st.doc && st.doc.status!=="open");
+function moneyInput(id, get, set, opts={}){
+  const i = el("input",{id, class:"n", inputmode:"decimal", autocomplete:"off", placeholder:opts.ph||"0.00", "aria-label":opts.label||null});
+  const v = get(); i.value = v==null? "" : (opts.int? String(v) : fix2(v));
+  i.addEventListener("input",()=>{ const t=i.value.trim();
+    if(t===""){ i.classList.remove("bad"); set(null); changed(); return; }
+    try{ const val = opts.int ? (/^\d+$/.test(t.replace(/[\s,]/g,""))? Number(t.replace(/[\s,]/g,"")) : (()=>{throw 0})()) : E.rand(t);
+      if(!opts.int && val<0 && !opts.neg) throw 0; i.classList.remove("bad"); set(val); changed(); }
+    catch(e){ i.classList.add("bad"); } });
+  return i;
+}
+function textInput(id, get, set, opts={}){ const i=el("input",{id,type:"text",autocomplete:"off",placeholder:opts.ph||"","aria-label":opts.label||null}); i.value=get()||""; i.addEventListener("input",()=>{ set(i.value); changed(); }); return i; }
+function field(label, input){ return el("label",{class:"f",for:input.id}, label, input); }
+function sec(id, title, sumText, ...body){ const d = el("details",{class:"sec",id:"sec-"+id}, el("summary",{}, el("h3",{text:title}), el("span",{class:"sum",id:"sum-"+id,text:sumText||""})), el("div",{class:"body"}, ...body));
+  try{ const o=JSON.parse(localStorage.getItem("sc.open")||"{}"); if(o[id]) d.open=true; }catch(e){}
+  d.addEventListener("toggle",()=>{ try{ const o=JSON.parse(localStorage.getItem("sc.open")||"{}"); o[id]=d.open; localStorage.setItem("sc.open",JSON.stringify(o)); }catch(e){} });
+  return d; }
+function lineTable(key, cols, mk){
+  const arr = st.doc[key];
+  const tb = el("tbody",{});
+  arr.forEach((row,i)=>{ tb.append(el("tr",{}, cols.map(c=>el("td",{class:c.n?"n":""}, c.render(row,i,key))),
+    el("td",{}, el("button",{class:"x","aria-label":"Remove line "+(i+1),onclick:()=>{ if(locked()) return; arr.splice(i,1); changed(); rebuild(key); }, disabled:locked()},"×")))); });
+  const t = el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{}, cols.map(c=>el("th",{class:c.n?"n":"",text:c.h})), el("th",{}))), tb));
+  const add = el("button",{class:"btn small",onclick:()=>{ if(locked()) return; arr.push(mk()); changed(); rebuild(key, true); }, disabled:locked()},"Add line");
+  return el("div",{id:"lt-"+key,class:"stack",style:"gap:6px"}, arr.length?t:el("div",{class:"small muted",text:"No lines yet."}), el("div",{},add));
+}
+function rebuild(key, focusLast){ const old=$("lt-"+key); if(!old) return; const n = LT[key](); old.replaceWith(n); if(focusLast){ const ins=n.querySelectorAll("tbody tr:last-child input, tbody tr:last-child select"); if(ins[0]) ins[0].focus(); } }
+const mcol = (h, prop, extra={}) => ({h, n:true, render:(row,i,key)=>moneyInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ...extra})});
+const tcol = (h, prop, ph) => ({h, render:(row,i,key)=>textInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ph})});
+const scol = (h, prop, options) => ({h, render:(row,i,key)=>{ const s=el("select",{id:`${key}-${i}-${prop}`,"aria-label":h}, options.map(([v,l])=>el("option",{value:v,text:l}))); s.value=row[prop]||options[0][0]; if(!row[prop]) row[prop]=options[0][0]; s.addEventListener("change",()=>{ row[prop]=s.value; changed(); }); return s; }});
+const GRADE_OPTS = [["",""],["D50","D50"],["ULP95","95"],["ULP93","93"]];
+const LT = {
+  drops: ()=>lineTable("drops",[mcol("Drop (POS)","amt"), mcol("Deposita slip","slip")],()=>({amt:null,slip:null})),
+  batches: ()=>lineTable("batches",[tcol("Batch no.","ref","862"), mcol("Amount","amt")],()=>({ref:"",amt:null})),
+  vouchers: ()=>lineTable("vouchers",[tcol("Batch no.","ref"), mcol("Amount","amt")],()=>({ref:"",amt:null})),
+  totalCard: ()=>lineTable("totalCard",[tcol("TSN","ref"), scol("Grade","grade",[["D50","D50"],["ULP95","95"],["ULP93","93"]]), mcol("Litres","litres"), mcol("POS amount","amt"), mcol("Card receipt","cardAmt")],()=>({ref:"",grade:"D50",litres:null,amt:null,cardAmt:null})),
+  unpaids: ()=>lineTable("unpaids",[tcol("Who","who","City to City"), scol("Type","kind",[["customer","Customer"],["account","Account"],["staff-overfill","Staff overfill"]]), mcol("Amount","amt"), tcol("Reg / reason","note")],()=>({who:"",kind:"customer",amt:null,note:""})),
+  unpaidPaid: ()=>lineTable("unpaidPaid",[tcol("Who","who"), mcol("Amount","amt")],()=>({who:"",amt:null})),
+  payouts: ()=>lineTable("payouts",[scol("Type","type",[["customer","Customer rebate"],["taxi","Taxi rebate"],["bowser","Bowser rebate"],["expense","Expense"]]), tcol("Customer / item","who"), scol("Grade","grade",GRADE_OPTS), mcol("Litres","litres"), mcol("Amount","amt")],()=>({type:"customer",who:"",grade:"",litres:null,amt:null})),
+  deliveries: ()=>lineTable("deliveries",[scol("Tank","tank",Object.keys(st.settings.tanks).map(t=>[t,"T"+t+" "+GN[st.settings.tanks[t].grade]])), mcol("Truck meter 20°C (L)","truck"), mcol("Gauge TC increase (L)","gauge")],()=>({tank:"1",truck:null,gauge:null})),
+};
+function buildForm(){
+  const d = st.doc, S = st.settings;
+  $("shiftEmpty").hidden=true; $("shiftWrap").hidden=false;
+  $("shiftTitle").textContent = `${prettyDate(d.date)} · ${d.period==="day"?"Day 06:00–18:00":"Night 18:00–06:00"}`;
+  const staffOpts = [["",""], ...S.staff.map(s=>[s.name,s.name])]; if (d.cashierName && !S.staff.some(s=>s.name===d.cashierName)) staffOpts.push([d.cashierName,d.cashierName]);
+  const cashierSel = el("select",{id:"f-cashier"}, staffOpts.map(([v,l])=>el("option",{value:v,text:l||"Choose…"}))); cashierSel.value=d.cashierName||"";
+  cashierSel.addEventListener("change",()=>{ d.cashierName=cashierSel.value; changed(); });
+  const pumpRows = Object.keys(S.pumps).map(p=>{ const r = d.pumps[p] = d.pumps[p]||{open:null,close:null};
+    const lit = el("td",{class:"n",id:"pl-"+p});
+    return el("tr",{}, el("td",{class:"pumpcell"}, "Pump "+p, el("small",{text:GN[S.pumps[p]]})),
+      el("td",{}, moneyInput("pump-"+p+"-open",()=>r.open,v=>{r.open=v;},{int:true,ph:"opening",label:"Pump "+p+" opening"})),
+      el("td",{}, moneyInput("pump-"+p+"-close",()=>r.close,v=>{r.close=v;},{int:true,ph:"closing",label:"Pump "+p+" closing"})), lit); });
+  const tankRows = Object.keys(S.tanks).map(t=>el("tr",{}, el("td",{class:"pumpcell"}, "Tank "+t, el("small",{text:GN[S.tanks[t].grade]})),
+    el("td",{}, moneyInput("tank-"+t+"-open",()=>d.tanks.open[t],v=>{d.tanks.open[t]=v;},{label:"Tank "+t+" opening TC"})),
+    el("td",{}, moneyInput("tank-"+t+"-close",()=>d.tanks.close[t],v=>{d.tanks.close[t]=v;},{label:"Tank "+t+" closing TC"}))));
+  const P = d.pos;
+  const posF = (lab, k, int) => field(lab, moneyInput("pos-"+k,()=>P[k],v=>{P[k]=v;},{int}));
+  const form = [
+    sec("details","Shift details", "", el("div",{class:"fields"},
+      field("Cashier who worked the shift", cashierSel),
+      field("POS shift no.", textInput("f-posShift",()=>d.posShiftNo,v=>{d.posShiftNo=v;},{ph:"482"})))),
+    sec("pumps","Pump readings", "", el("div",{class:"small muted",text:"Openings carry over from the previous shift's closings. Readings in whole litres."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Pump"}),el("th",{text:"Opening"}),el("th",{text:"Closing"}),el("th",{class:"n",text:"Litres"}))), el("tbody",{},pumpRows)))),
+    sec("pos","POS shift report", "", el("div",{class:"small muted",text:"Copy these from the Cashier Shift End Report."}),
+      el("div",{class:"fields"}, posF("Sales total (wet stock)","sales"), posF("Cash","cash"), posF("All card tenders (fuel + bank + fleet + Total Card)","cards"),
+        posF("Local accounts","localAccounts"), posF("Safe drops total","safeDrops"), posF("Pay out total","payouts"), posF("Pay out count","payoutCount",true),
+        field("POS cashier no.", textInput("pos-cashierNo",()=>P.cashierNo,v=>{P.cashierNo=v.trim();},{ph:"2173"})),
+        field("POS cashier name", textInput("pos-cashierName",()=>P.cashierName,v=>{P.cashierName=v;},{ph:"as printed"}))),
+      el("div",{class:"small muted",text:"Litres sold by grade (Non-Mandate Sales on page 4)"}),
+      el("div",{class:"fields"}, GRADES.map(g=>field(GN[g]+" litres", moneyInput("pos-l-"+g,()=>P.litres[g],v=>{P.litres[g]=v;}))))),
+    sec("drops","Safe drops and coins","", LT.drops(), el("div",{class:"fields"}, field("Coins", moneyInput("f-coins",()=>d.coins,v=>{d.coins=v;})))),
+    sec("batches","Card batches","", LT.batches()),
+    sec("vouchers","Vouchers (fleet / Standard Bank)","", LT.vouchers()),
+    sec("totalCard","Total Card","", el("div",{class:"small muted",text:"Enter the card receipt amount too: the app checks the customer's rebate against the agreed rate."}), LT.totalCard()),
+    sec("local","Local accounts","", el("div",{class:"fields"}, field("Account sheets total", moneyInput("f-localSheet",()=>d.localSheet,v=>{d.localSheet=v;})))),
+    sec("unpaids","Unpaids","", LT.unpaids(), el("h3",{text:"Unpaid paid (collected this shift)"}), LT.unpaidPaid()),
+    sec("payouts","Pay outs and rebates","", LT.payouts()),
+    sec("tanks","Tank gauge (TC volume)","", el("div",{class:"small muted",text:"From the gauge slip printed at shift change. TC volume in litres."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Tank"}),el("th",{text:"Opening TC"}),el("th",{text:"Closing TC"}))), el("tbody",{},tankRows)))),
+    sec("deliveries","Deliveries","", LT.deliveries()),
+    st.assets? sec("photos","Photos of slips","", photoBlock()) : null,
+    sec("history","History","", historyBlock()),
+  ].filter(Boolean);
+  $("form").replaceChildren(...form);
+  renderStatus(); applyLock(); refresh();
+}
+function photoBlock(){
+  const d = st.doc;
+  const inp = el("input",{type:"file",id:"photoIn",accept:"image/*,application/pdf",multiple:true});
+  const thumbs = el("div",{class:"thumbs",id:"thumbs"}, d.photos.map(p=>el("a",{href:"/_blob/"+p.id,target:"_blank",rel:"noopener"}, p.type==="application/pdf"?el("span",{class:"pill",text:"PDF"}):el("img",{src:"/_blob/"+p.id,alt:p.label||"Slip photo"}))));
+  inp.addEventListener("change", async ()=>{ for (const f of inp.files){ try{ setSave("Uploading…"); const r = await st.assets.upload(f, f.type?undefined:{type:"image/jpeg"}); d.photos.push({id:r.id,label:f.name,type:r.contentType}); changed(); } catch(e){ banner("Photo not uploaded: "+(e.code==="too_large"?"the file is over 20 MB.":e.code==="unsupported_type"?"use a JPG, PNG or PDF.":"try again.")); } }
+    inp.value=""; const nb=photoBlock(); $("photoBox").replaceWith(nb); });
+  return el("div",{class:"stack",id:"photoBox"}, el("label",{class:"f",for:"photoIn"},"Add photos of drop slips, batch slips, gauge slips and delivery notes", inp), thumbs);
+}
+function historyBlock(){
+  const ev = (st.doc.events||[]).slice().reverse();
+  const box = el("div",{id:"histBox"}, ev.length? el("ul",{class:"alerts"}, ev.map(e=>el("li",{class:"info"}, el("span",{}, el("strong",{text:e.action})," · ", el("span",{class:"who","data-uid":e.by||""},"…")," · ", new Date(e.at).toLocaleString("en-ZA"), e.note?(" · "+e.note):"")))) : el("div",{class:"small muted",text:"No history yet."}));
+  resolveNames(box);
+  return box;
+}
+async function resolveNames(root){
+  const nodes=[...root.querySelectorAll("[data-uid]")]; const ids=[...new Set(nodes.map(n=>n.dataset.uid).filter(Boolean))];
+  let ps={}; if (st.user && ids.length){ try{ ps = await st.user.profiles(ids); }catch(e){} }
+  for (const n of nodes) n.textContent = (n.dataset.uid && ps[n.dataset.uid]?.name) || (n.dataset.uid && n.dataset.uid===st.me ? "you" : "someone");
+}
+function renderStatus(){
+  const d=st.doc, i=STATUSES.indexOf(d.status);
+  $("stepper").replaceChildren(...STATUSES.map((s,k)=>el("span",{class:k<i?"done":k===i?"now":"",text:STATUS_LABEL[s]})));
+  const acts=[];
+  const go = (to, label, primary) => el("button",{class:"btn"+(primary?" primary":""),disabled:st.readOnly,onclick:async()=>{ await flush(); d.status=to; addEvent(label); st.dirty=true; await flush(); buildForm(); }}, label);
+  if (d.status==="open") acts.push(go("submitted","Submit",true));
+  if (d.status==="submitted") acts.push(go("reconciled","Mark reconciled",true));
+  if (d.status==="reconciled") acts.push(go("signed","Sign off",true));
+  if (d.status!=="open") acts.push(el("button",{class:"btn",disabled:st.readOnly,onclick:()=>{ $("reopenBox").hidden=false; $("reopenReason").focus(); }},"Reopen"));
+  $("actions").replaceChildren(...acts);
+}
+$("reopenCancel").addEventListener("click",()=>{ $("reopenBox").hidden=true; });
+$("reopenGo").addEventListener("click",async ()=>{ const why=$("reopenReason").value.trim(); if(!why){ $("reopenReason").classList.add("bad"); return; }
+  $("reopenReason").classList.remove("bad"); st.doc.status="open"; addEvent("Reopened", why); st.dirty=true; await flush(); $("reopenBox").hidden=true; $("reopenReason").value=""; buildForm(); });
+function applyLock(){ const l=locked(); document.querySelectorAll("#form input, #form select, #form button").forEach(x=>{ if(x.closest("#sec-history")) return; x.disabled=l; }); }
+
+function changed(){ refresh(); scheduleSave(); st.shifts[st.curId]=clone(st.doc); }
+function refresh(){
+  const d=st.doc, S=st.settings, r=evalDoc(d);
+  for (const p of Object.keys(S.pumps)){ const x=d.pumps[p], c=$("pl-"+p); if(c) c.textContent = (x&&x.open!=null&&x.close!=null)? String(x.close-x.open) : ""; }
+  const tot = (a)=>a.reduce((s,x)=>s+(x.amt||0),0);
+  const set=(id,t)=>{ const e=$("sum-"+id); if(e) e.textContent=t; };
+  set("drops", d.drops.length? fmtR(tot(d.drops)+(d.coins||0)) : ""); set("batches", d.batches.length? fmtR(tot(d.batches)):"");
+  set("vouchers", d.vouchers.length? fmtR(tot(d.vouchers)):""); set("totalCard", d.totalCard.length? fmtR(tot(d.totalCard)):"");
+  set("unpaids", (d.unpaids.length||d.unpaidPaid.length)? `${fmtR(tot(d.unpaids))} / paid ${fmtR(tot(d.unpaidPaid))}`:""); set("payouts", d.payouts.length? `${d.payouts.length} lines · ${fmtR(tot(d.payouts))}`:"");
+  set("pos", d.pos.sales!=null? fmtR(d.pos.sales):""); set("local", d.localSheet!=null? fmtR(d.localSheet):"");
+  const np = Object.values(d.pumps).filter(x=>x&&x.open!=null&&x.close!=null).length; set("pumps", `${np}/${Object.keys(S.pumps).length}`);
+  set("details", d.cashierName||""); set("deliveries", d.deliveries.length? `${d.deliveries.length} drop${d.deliveries.length>1?"s":""}`:"");
+  renderSide(r);
+}
+function renderMbar(r){ const d=st.doc; const lv=level(r);
+  $("mbarRes").className="result "+(d.pos.sales==null||!r?"":lv); $("mbarRes").textContent = (!r||d.pos.sales==null)?"Not reconciled":r.cash.label;
+  const reds=r?r.alerts.filter(a=>a.level==="red").length:0, amb=r?r.alerts.filter(a=>a.level==="amber").length:0;
+  $("mbarPills").replaceChildren(reds?el("span",{class:"pill bad",text:reds+" red"}):"", " ", amb?el("span",{class:"pill warn",text:amb+" amber"}):""); }
+$("mbarGo").addEventListener("click",()=>$("side").scrollIntoView({behavior:"smooth",block:"start"}));
+function renderSide(r){
+  const d=st.doc, side=$("side"); renderMbar(r);
+  if(!r){ side.replaceChildren(el("div",{class:"panel",text:"Some figures could not be read. Check fields marked red."})); return; }
+  const c=r.cash.components, lv=level(r);
+  const kvs = [["Safe drops",c.safeDrops],["Coins",c.coins],["Card batches",c.cardBatches],["Vouchers",c.vouchers],["Total Card",c.totalCard],["Local accounts",c.localAccounts],["Unpaids",c.unpaids],["less unpaid paid",-c.unpaidPaid],["Pay outs",c.payouts]];
+  const kv = el("div",{class:"kv"}, kvs.flatMap(([k,v])=>[el("span",{class:"muted",text:k}), el("span",{class:"n num",text:fmtR(v)})]),
+    el("span",{class:"tot",text:"Accounted"}), el("span",{class:"tot n num",text:fmtR(r.cash.accounted)}),
+    el("span",{class:"muted",text:"POS sales"}), el("span",{class:"n num",text:fmtR(d.pos.sales)}));
+  const fuel = r.fuel.grades.length? el("div",{class:"tablewrap"}, el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Grade"}),el("th",{class:"n",text:"Pumps"}),el("th",{class:"n",text:"POS"}),el("th",{class:"n",text:"Diff"}))),
+    el("tbody",{}, r.fuel.grades.map(g=>el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meterLitres)}),el("td",{class:"n",text:fmtL(g.posLitres)}),el("td",{class:"n",text:g.difference==null?"":(g.difference>0?"+":"")+fmtL(g.difference)})))))) : null;
+  const tanks = r.fuel.tanks.length? el("div",{class:"small"}, r.fuel.tanks.map(t=>el("div",{class:"row",style:"justify-content:space-between"}, el("span",{text:GN[t.grade]+" tanks this shift"}), el("span",{class:"num",text:(t.variance>0?"+":"")+fmtL(t.variance)})))) : null;
+  side.replaceChildren(
+    el("div",{class:"panel stack"},
+      el("div",{class:"row",style:"justify-content:space-between"}, el("h2",{text:"Cash-up"}), el("span",{class:"pill "+(d.pos.sales==null?"":lv),text:d.pos.sales==null?"Waiting for POS figures":({good:"All clear",warn:"Check amber items",bad:"Red items"}[lv])})),
+      el("div",{class:"result "+(d.pos.sales==null?"":lv),text:d.pos.sales==null?"—":r.cash.label}), kv,
+      (r.cash.cashSide!=null||r.cash.cardSide!=null)? el("div",{class:"small muted"}, r.cash.cashSide!=null?`Cash vs POS cash: ${r.cash.cashSide>0?"short ":"over "}${fmtR(Math.abs(r.cash.cashSide))}. `:"", r.cash.cardSide!=null?`Cards and unpaids vs POS cards: ${r.cash.cardSide>0?"short ":"over "}${fmtR(Math.abs(r.cash.cardSide))}.`:""):null),
+    el("div",{class:"panel stack"}, el("h2",{text:"Checks"}),
+      r.alerts.length? el("ul",{class:"alerts"}, r.alerts.map(a=>el("li",{class:a.level,text:a.text}))) : el("div",{class:"small muted",text:"Nothing to check so far."}),
+      r.missing.length? el("div",{class:"small muted",text:"Still to enter: "+r.missing.join(", ")+"."}):null),
+    (fuel||tanks)? el("div",{class:"panel stack"}, el("h2",{text:"Fuel this shift"}), fuel, tanks, el("div",{class:"small muted",text:"The 24-hour figures on the Today tab are the official fuel check."})) : null
+  );
+}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  const S = clone(st.settings); S.staff=S.staff||[]; S.rates=S.rates||{};
+  const canEdit = st.canEdit && !st.readOnly;
+  const rateRows = Object.entries(S.rates).map(([k,v])=>{ const [c,g]=k.split("|"); return {customer:c, grade:g==="*"?"":g, rate:v}; });
+  const staffT = el("tbody",{}), rateT = el("tbody",{});
+  const drawStaff = ()=>{ staffT.replaceChildren(...S.staff.map((s,i)=>el("tr",{}, el("td",{}, textInput("st-"+i+"-name",()=>s.name,v=>{s.name=v;},{label:"Name"})), el("td",{}, textInput("st-"+i+"-pos",()=>s.posNo,v=>{s.posNo=v.trim()||undefined;},{label:"POS cashier no.",ph:"none"})),
+    el("td",{}, el("button",{class:"x",onclick:()=>{S.staff.splice(i,1); drawStaff();},"aria-label":"Remove"},"×"))))); };
+  const drawRates = ()=>{ rateT.replaceChildren(...rateRows.map((r,i)=>{ const g=el("select",{id:"rt-"+i+"-g","aria-label":"Grade"}, [["","All grades"],["D50","D50"],["ULP95","ULP 95"],["ULP93","ULP 93"]].map(([v,l])=>el("option",{value:v,text:l}))); g.value=r.grade; g.addEventListener("change",()=>r.grade=g.value);
+    const rate=el("input",{id:"rt-"+i+"-r",class:"n",inputmode:"decimal","aria-label":"Rate per litre"}); rate.value=r.rate==null?"":(r.rate/100).toFixed(2); rate.addEventListener("input",()=>{ try{ r.rate=E.rand(rate.value); rate.classList.remove("bad"); }catch(e){ rate.classList.add("bad"); } });
+    return el("tr",{}, el("td",{}, textInput("rt-"+i+"-c",()=>r.customer,v=>{r.customer=v;},{label:"Customer"})), el("td",{},g), el("td",{},rate), el("td",{}, el("button",{class:"x",onclick:()=>{rateRows.splice(i,1); drawRates();},"aria-label":"Remove"},"×"))); })); };
+  drawStaff(); drawRates();
+  const num2 = (id, val, cb) => { const i=el("input",{id,class:"n",inputmode:"decimal"}); i.value=val; i.addEventListener("input",()=>cb(i.value)); return i; };
+  let tcRate = (S.totalCardRebate?.D50 ?? 4585)/1000, taxi=(S.taxiRate??80)/100, red=(S.tol.cashRed??500)/100, pumpPct=S.tol.pumpPct, tankPct=S.tol.tankPct, dropPct=S.tol.dropPct;
+  const saveBtn = el("button",{class:"btn primary",disabled:!canEdit,onclick:async()=>{
+    const rates={}; for (const r of rateRows) if(r.customer.trim() && r.rate!=null) rates[`${r.customer.trim()}|${r.grade||"*"}`]=r.rate;
+    const out = {...S, rates, staff:S.staff.filter(s=>s.name&&s.name.trim()), taxiRate:Math.round(Number(taxi)*100), totalCardRebate:{D50:Math.round(Number(tcRate)*1000)},
+      tol:{cashAmber:0, cashRed:Math.round(Number(red)*100), pumpPct:Number(pumpPct), tankPct:Number(tankPct), dropPct:Number(dropPct)}};
+    if ([out.taxiRate,out.totalCardRebate.D50,out.tol.cashRed,out.tol.pumpPct,out.tol.tankPct,out.tol.dropPct].some(x=>!Number.isFinite(x))){ banner("Some settings are not numbers. Check the fields and save again."); return; }
+    try{ await st.db.doc("settings/site").set(out); st.settings=out; banner(""); saveBtn.textContent="Saved"; setTimeout(()=>saveBtn.textContent="Save settings",1500); }
+    catch(e){ banner(e.code==="invalid_argument"?"Only Abdul or an Editor can change settings.":"Settings not saved. Try again."); } }},"Save settings");
+  $("settingsForm").replaceChildren(
+    canEdit? null : el("div",{class:"notice",text:"Only Abdul or an Editor can change settings. You can see them here."}),
+    el("div",{class:"panel stack"}, el("h2",{text:"Staff and POS logins"}), el("div",{class:"small muted",text:"Each cashier's own POS cashier number. The app flags any shift where the POS login belongs to someone else."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Name"}),el("th",{text:"POS cashier no."}),el("th",{}))), staffT)),
+      el("div",{}, el("button",{class:"btn small",onclick:()=>{S.staff.push({name:"",posNo:undefined}); drawStaff();}},"Add person"))),
+    el("div",{class:"panel stack"}, el("h2",{text:"Agreed rebate rates"}), el("div",{class:"small muted",text:"Rand per litre. Every rebate line for these customers is checked against this rate (cut to the cent, as the POS does)."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Customer (as written on Page 2)"}),el("th",{text:"Grade"}),el("th",{class:"n",text:"R per litre"}),el("th",{}))), rateT)),
+      el("div",{}, el("button",{class:"btn small",onclick:()=>{rateRows.push({customer:"",grade:"",rate:null}); drawRates();}},"Add rate")),
+      el("div",{class:"fields"}, field("Taxi rebate, R per litre", num2("set-taxi",taxi.toFixed(2),v=>taxi=v)), field("Total Card rebate, R per litre (diesel)", num2("set-tc",tcRate.toFixed(3),v=>tcRate=v)))),
+    el("div",{class:"panel stack"}, el("h2",{text:"Tolerances"}),
+      el("div",{class:"fields"}, field("Cash red above (R)", num2("set-red",red.toFixed(2),v=>red=v)), field("Pumps vs POS red above (% of sales)", num2("set-pump",String(pumpPct),v=>pumpPct=v)),
+        field("Tank variance amber above (% of sales)", num2("set-tank",String(tankPct),v=>tankPct=v)), field("Delivery gauge vs truck amber above (%)", num2("set-drop",String(dropPct),v=>dropPct=v))),
+      el("div",{class:"small muted",text:"Cash: any difference shows amber; above the red amount it shows red. Tank variance above 0.5% of sales is red."})),
+    el("div",{class:"row"}, saveBtn));
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  const fallback = setTimeout(()=>{ if(!st.db){ $("dayCards").replaceChildren(el("div",{class:"panel empty",text:"Sign in to claude.ai to see and enter shifts."})); } }, 11000);
+  const [db,user,assets] = await Promise.all([window.claude?.use("db"), window.claude?.use("user"), window.claude?.use("assets")]);
+  clearTimeout(fallback);
+  st.db=db; st.user=user; st.assets=assets||null;
+  if (!db){ $("dayCards").replaceChildren(el("div",{class:"panel empty",text:"Sign in to claude.ai to see and enter shifts."})); banner("Shift records are not available in this view."); return; }
+  if (user){ st.me = await user.id(); st.canEdit = await user.canEdit(); const w = await user.can("data.write"); if (w===false){ st.readOnly=true; banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); } }
+  db.doc("settings/site").onSnapshot((s)=>{ if(s.exists){ st.settings = Object.assign(clone(DEFAULT_SETTINGS), s.data()); } st.settingsLoaded=true; if(st.tab==="settings") renderSettings(); else if(st.tab==="today") renderToday(); }, (e)=>console.error(e));
+  db.collection("shifts").orderBy("date","desc").limit(400).onSnapshot((snap)=>{
+    const next={}; for (const d of snap.docs) next[d.id]=d.data();
+    if (st.curId && st.dirty && st.doc) next[st.curId]=clone(st.doc); // keep unsaved local edits
+    st.shifts=next;
+    if (st.tab==="today") renderToday();
+    if (st.tab==="shift" && st.curId && next[st.curId] && !st.dirty && !st.saving){
+      const incoming = normalize(next[st.curId]);
+      if (JSON.stringify(incoming)!==JSON.stringify(st.doc)){ st.doc=incoming; const a=document.activeElement?.id; buildForm(); if(a&&$(a)) $(a).focus(); }
+    }
+  }, (e)=>{ console.error(e); banner("Lost the connection to shift records. Reload the page."); });
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flush(); });
+let startTab="today"; try{ startTab=localStorage.getItem("sc.tab")||"today"; }catch(e){}
+showTab(startTab==="shift"?"today":startTab);
+boot();
+})();
+</script>
