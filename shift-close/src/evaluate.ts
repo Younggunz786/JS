@@ -2,8 +2,8 @@
 // All money is integer cents; all volumes integer centilitres (litres x 100).
 import { Cents, Centilitres, sum, showRand, showLitres } from "./units.js";
 import { reconcileCashUp } from "./cashup.js";
-import { pumpsVsPos, tankReconciliation, dropCheck, Grade } from "./fuel.js";
-import { pumpContinuity } from "./checks.js";
+import { pumpsVsPos, tankReconciliation, dropCheck, deliveryCheck, dipHeightDifference, maxOrder, Grade } from "./fuel.js";
+import { pumpContinuity, statedResultCheck } from "./checks.js";
 
 export interface ShiftDoc {
   date: string; period: "day" | "night";
@@ -14,18 +14,31 @@ export interface ShiftDoc {
     safeDrops?: Cents | null; payouts?: Cents | null; payoutCount?: number | null;
     cashierNo?: string; cashierName?: string;
     litres?: Partial<Record<Grade, Centilitres | null>>;
+    discountsAuto?: Cents | null; discountsManual?: Cents | null;
   };
+  /** The short/over written on the paper Page 7 (parallel run): checked against the calculation. */
+  stated?: { amount?: Cents | null; direction?: "short" | "over" | "" };
   drops: { amt: Cents; slip?: Cents | null }[];
   coins?: Cents | null;
   batches: { ref?: string; amt: Cents }[];
   vouchers: { ref?: string; amt: Cents }[];
   totalCard: { ref?: string; grade?: Grade; litres?: Centilitres | null; amt: Cents; cardAmt?: Cents | null }[];
   localSheet?: Cents | null;
+  /** Local account sale lines. When present, their sum is the account sheet total (a total is never typed). */
+  accounts?: { account: string; reg?: string; km?: number | null; litres?: Centilitres | null; amt: Cents | null }[];
   unpaids: { who: string; kind?: "customer" | "account" | "staff-overfill"; amt: Cents; note?: string }[];
   unpaidPaid: { who: string; amt: Cents }[];
   payouts: { type: "customer" | "taxi" | "bowser" | "expense"; who?: string; grade?: Grade | ""; litres?: Centilitres | null; amt: Cents }[];
-  tanks?: { open?: Record<string, Centilitres | null>; close?: Record<string, Centilitres | null> };
+  tanks?: {
+    open?: Record<string, Centilitres | null>; close?: Record<string, Centilitres | null>;
+    /** Closing gauge height and manual stick dip, in mm (5.6). */
+    dip?: Record<string, { gaugeMm?: number | null; stickMm?: number | null }>;
+    /** Water reported by the gauge at close, in mm. */
+    water?: Record<string, number | null>;
+  };
   deliveries?: { tank: string; truck: Centilitres; gauge?: Centilitres | null }[];
+  /** Delivery note / BOL per grade: loaded at 20°C and the volume recorded as returned (5.4). */
+  deliveryNotes?: { ref?: string; grade: Grade; bol: Centilitres | null; returned?: Centilitres | null }[];
 }
 
 export interface Settings {
@@ -34,8 +47,24 @@ export interface Settings {
   rates: Record<string, number>;          // cents per litre, key "customer|grade" or "customer|*"
   taxiRate: number;                       // cents per litre
   totalCardRebate: Partial<Record<Grade, number>>; // thousandths of a rand per litre (R4.585 = 4585)
-  tol: { cashAmber: Cents; cashRed: Cents; pumpPct: number; tankPct: number; dropPct: number };
+  tol: {
+    cashAmber: Cents; cashRed: Cents; pumpPct: number; tankPct: number; dropPct: number;
+    dropAmberPct?: number; dipAmberMm?: number; dipRedMm?: number; tankLowAmberPct?: number; tankLowRedPct?: number;
+  };
   staff: { name: string; posNo?: string }[];
+  /** Order up to this % of gauge capacity (5.5). */
+  safeFillPct?: number;
+}
+
+/** Tolerances added after v0.4, with the spec section 6 starting values. */
+export const TOL_DEFAULTS = { dropAmberPct: 0.5, dipAmberMm: 10, dipRedMm: 25, tankLowAmberPct: 25, tankLowRedPct: 15 };
+const tolOf = (s: Settings) => ({ ...TOL_DEFAULTS, ...Object.fromEntries(Object.entries(s.tol).filter(([, v]) => typeof v === "number")) }) as Settings["tol"] & typeof TOL_DEFAULTS;
+
+/** The account sheet total: the sum of account lines when any are entered, else the typed sheet total. */
+export function localSheetTotal(doc: ShiftDoc): Cents | null {
+  const lines = (doc.accounts || []).filter((a) => typeof a.amt === "number");
+  if (lines.length) return sum(lines.map((a) => a.amt as number));
+  return typeof doc.localSheet === "number" ? doc.localSheet : null;
 }
 
 export type Level = "red" | "amber" | "info";
@@ -47,6 +76,8 @@ const norm = (s = "") => s.trim().toLowerCase();
 
 export function evaluateShift(doc: ShiftDoc, s: Settings, prev?: ShiftDoc | null) {
   const alerts: Alert[] = [];
+  const tol = tolOf(s);
+  doc = { ...doc, localSheet: localSheetTotal(doc) };
   const missing: string[] = [];
   const pos = doc.pos || {};
   if (num(pos.sales) === null) missing.push("POS sales total");
@@ -201,10 +232,64 @@ export function evaluateShift(doc: ShiftDoc, s: Settings, prev?: ShiftDoc | null
 
   const drops = (doc.deliveries || []).filter((d) => num(d.gauge) !== null && d.truck > 0).map((d) => {
     const r = dropCheck({ tank: Number(d.tank), truckMeter20C: d.truck, gaugeTCIncrease: d.gauge as number });
-    if (Math.abs(r.pct) > s.tol.dropPct)
-      alerts.push({ level: "amber", area: "fuel", text: `Delivery to tank ${d.tank}: gauge rose ${showLitres(d.gauge as number)}, truck meter ${showLitres(d.truck)} (${r.pct > 0 ? "+" : ""}${r.pct.toFixed(1)}%)` });
+    if (Math.abs(r.pct) > tol.dropAmberPct)
+      alerts.push({ level: Math.abs(r.pct) > tol.dropPct ? "red" : "amber", area: "fuel", text: `Delivery to tank ${d.tank}: gauge rose ${showLitres(d.gauge as number)}, truck meter ${showLitres(d.truck)} (${r.pct > 0 ? "+" : ""}${r.pct.toFixed(1)}%)` });
     return r;
   });
+
+  // 5.4 Delivery note: loaded - delivered must equal the volume recorded as returned.
+  const deliveryNotes: { grade: Grade; loaded: number; delivered: number; returned: number; notDelivered: number; unexplained: number }[] = [];
+  for (const g of ["D50", "ULP95", "ULP93"] as Grade[]) {
+    const notes = (doc.deliveryNotes || []).filter((n) => n.grade === g && num(n.bol) !== null);
+    if (!notes.length) continue;
+    const ids = Object.keys(s.tanks).filter((t) => s.tanks[t].grade === g);
+    const delivered = sum((doc.deliveries || []).filter((d) => ids.includes(String(d.tank)) && num(d.truck) !== null).map((d) => d.truck));
+    const loaded = sum(notes.map((n) => n.bol as number)), returned = sum(notes.map((n) => num(n.returned) ?? 0));
+    const r = deliveryCheck({ bolLoaded20C: loaded, truckMeter20C: delivered, returnedRecorded: returned });
+    deliveryNotes.push({ grade: g, loaded, delivered, returned, notDelivered: r.notDelivered, unexplained: r.unexplained });
+    if (r.unexplained > 0)
+      alerts.push({ level: "red", area: "fuel", text: `${GRADE_NAME[g]} delivery: ${showLitres(r.unexplained)} loaded but neither delivered nor recorded as returned` });
+    else if (r.unexplained < 0)
+      alerts.push({ level: "red", area: "fuel", text: `${GRADE_NAME[g]} delivery: truck meters and returns add up to ${showLitres(-r.unexplained)} more than the BOL loaded` });
+    else if (r.notDelivered > 0)
+      alerts.push({ level: "info", area: "fuel", text: `${GRADE_NAME[g]} delivery: ${showLitres(r.notDelivered)} not delivered, matched to the recorded return` });
+  }
+
+  // 5.6 Manual stick dip vs gauge height (mm), tank level and water at close.
+  const dips: { tank: string; gaugeMm: number; stickMm: number; difference: number }[] = [];
+  for (const t of Object.keys(s.tanks)) {
+    const dp = doc.tanks?.dip?.[t];
+    const gm = num(dp?.gaugeMm), sm = num(dp?.stickMm);
+    if (gm !== null && sm !== null) {
+      const difference = dipHeightDifference(sm, gm);
+      dips.push({ tank: t, gaugeMm: gm, stickMm: sm, difference });
+      const a = Math.abs(difference);
+      if (a > tol.dipAmberMm)
+        alerts.push({ level: a > tol.dipRedMm ? "red" : "amber", area: "fuel", text: `Tank ${t}: stick dip ${sm} mm vs gauge ${gm} mm (${difference > 0 ? "+" : ""}${difference} mm)` });
+    }
+    const w = num(doc.tanks?.water?.[t]);
+    if (w !== null && w > 0) alerts.push({ level: "red", area: "fuel", text: `Tank ${t}: ${w} mm of water on the gauge` });
+    const c = num(doc.tanks?.close?.[t]);
+    if (c !== null && s.tanks[t].capacity > 0) {
+      const pct = (c / (s.tanks[t].capacity * 100)) * 100;
+      if (pct < tol.tankLowAmberPct)
+        alerts.push({ level: pct < tol.tankLowRedPct ? "red" : "amber", area: "fuel", text: `Tank ${t} (${GRADE_NAME[s.tanks[t].grade]}) is at ${pct.toFixed(0)}% (${showLitres(c)})` });
+    }
+  }
+
+  // Written Page 7 result vs calculated (parallel run).
+  let stated = null as null | ReturnType<typeof statedResultCheck>;
+  if (num(doc.stated?.amount) !== null && num(pos.sales) !== null) {
+    const dir = doc.stated?.direction || undefined;
+    stated = statedResultCheck(cash.shortOver, { amount: doc.stated!.amount as number, direction: dir });
+    if (!stated.ok) {
+      const written = `${dir ? dir + " " : ""}${showRand(doc.stated!.amount as number)}`;
+      alerts.push({ level: "red", area: "paperwork", text: `Page 7 written as ${written}, but the calculation gives ${cash.label.charAt(0).toLowerCase() + cash.label.slice(1)}` });
+    }
+  }
+
+  if ((num(pos.discountsManual) ?? 0) > 0)
+    alerts.push({ level: "amber", area: "cash", text: `Manual discounts on the POS: ${showRand(pos.discountsManual as number)}. Discounts are normally automatic.` });
 
   for (const u of doc.unpaids) if (u.kind === "staff-overfill") alerts.push({ level: "info", area: "cash", text: `Staff overfill: ${u.who} ${showRand(u.amt)}` });
 
@@ -212,7 +297,7 @@ export function evaluateShift(doc: ShiftDoc, s: Settings, prev?: ShiftDoc | null
   alerts.sort((a, b) => order[a.level] - order[b.level]);
   return {
     cash: { ...cash, checks, cashSide, cardSide }, totalCard: tc,
-    fuel: { grades, tanks, deliveries: drops }, continuity, alerts, missing,
+    fuel: { grades, tanks, deliveries: drops, deliveryNotes, dips }, continuity, stated, alerts, missing,
     worst: alerts.find((a) => a.level !== "info")?.level ?? "ok",
   };
 }
@@ -257,4 +342,29 @@ export function evaluateFuelDay(day: ShiftDoc, night: ShiftDoc, s: Settings) {
   const order: Record<Level, number> = { red: 0, amber: 1, info: 2 };
   alerts.sort((a, b) => order[a.level] - order[b.level]);
   return { grades, alerts };
+}
+
+/** Consecutive fuel days of loss at the end of a series (oldest first). null = no figure that day, which breaks the run. */
+export function lossStreak(variances: (Centilitres | null)[], ignoreBelow: Centilitres = 0) {
+  let n = 0;
+  for (let i = variances.length - 1; i >= 0; i--) {
+    const v = variances[i];
+    if (v === null || v >= -ignoreBelow) break;
+    n++;
+  }
+  return n;
+}
+
+/** 5.5 Order check per grade group: how much can be ordered now without passing the safe-fill level. */
+export function orderRoom(s: Settings, closingTC: Record<string, Centilitres | null | undefined>, forecast: Partial<Record<Grade, Centilitres>> = {}) {
+  const pct = s.safeFillPct ?? 90;
+  return (["D50", "ULP95", "ULP93"] as Grade[]).flatMap((g) => {
+    const ids = Object.keys(s.tanks).filter((t) => s.tanks[t].grade === g);
+    if (!ids.length || ids.some((t) => num(closingTC[t]) === null)) return [];
+    const capacity = sum(ids.map((t) => s.tanks[t].capacity * 100));
+    const current = sum(ids.map((t) => closingTC[t] as number));
+    const f = forecast[g] ?? 0;
+    return [{ grade: g, tanks: ids, capacity, current, pctFull: (current / capacity) * 100, safeLevel: Math.floor((capacity * pct) / 100),
+      forecast: f, room: maxOrder({ capacity, safeFillPct: pct, currentTC: current, forecastSalesUntilArrival: f }) }];
+  });
 }

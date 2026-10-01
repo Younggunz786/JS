@@ -1,13 +1,13 @@
 {
-  "name": "shift-close-engine",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "shift-close",
+  "version": "0.5.0",
+  "description": "Shift Close for TotalEnergies Perth Road: reconciliation engine and single-file app",
   "scripts": {
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "build": "tsx scripts/build.ts",
+    "e2e": "npm run build && tsx --test e2e/*.e2e.ts"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {

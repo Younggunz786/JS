@@ -49,6 +49,8 @@ export const day30: ShiftDoc = {
     taxi(11.15, 8.92), taxi(11.16, 8.92), taxi(9.29, 7.43), taxi(11.15, 8.84), taxi(22.29, 17.83)],
   tanks: { open: t0600, close: t1814 },
   deliveries: [{ tank: "2", truck: l(4804), gauge: l(4757) }, { tank: "3", truck: l(5320), gauge: l(5431) }, { tank: "5", truck: l(4753), gauge: l(4965) }, { tank: "1", truck: l(9088), gauge: l(8989) }],
+  // Delivery 3017884981: BOL loaded at 20°C per grade and the volume recorded as returned.
+  deliveryNotes: [{ ref: "3017884981", grade: "ULP95", bol: l(4040 + 4042), returned: l(3278) }, { ref: "3017884981", grade: "D50", bol: l(5031 + 5029 + 10057), returned: l(956) }],
 };
 
 export const night30: ShiftDoc = {

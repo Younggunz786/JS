@@ -100,6 +100,20 @@ table.lines input,table.lines select{padding:6px 8px}
 @media (min-width:900px){.mbar{display:none}}
 .empty{padding:20px;text-align:center;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+td.bad,span.bad{color:var(--bad)} td.warn,span.warn{color:var(--warn)} td.good{color:var(--good)}
+.lvl{display:inline-block;width:72px;height:8px;border-radius:4px;background:var(--sunk);vertical-align:middle;overflow:hidden}
+.lvl>i{display:block;height:100%;background:var(--accent)} .lvl.warn>i{background:var(--warn)} .lvl.bad>i{background:var(--bad)}
+.ask{margin-bottom:10px;display:flex;flex-direction:column;gap:10px}
+.ask ul{margin:0;padding-left:18px}
+.who-chip{font-size:12px;color:var(--muted)}
+.changes{margin:4px 0 0;padding-left:16px;font-size:13px;color:var(--muted)}
+ul.alerts .changes li{display:list-item;font-size:13px}
+ul.alerts .changes li::before{display:none}
+.subtabs{display:flex;gap:6px;flex-wrap:wrap}
+.role{font-size:12px;color:var(--muted)}
+textarea{font:14px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-height:96px}
+.sechint{font-size:12px;color:var(--muted)}
+details.sec.ro>summary .sum::after{content:" · locked";color:var(--muted)}
 </style>
 
 <header class="top"><div class="topin">
@@ -107,6 +121,7 @@ table.lines input,table.lines select{padding:6px 8px}
   <nav class="tabs" aria-label="Sections">
     <button id="tab-today" data-tab="today" aria-current="page">Today</button>
     <button id="tab-shift" data-tab="shift">Shift</button>
+    <button id="tab-reports" data-tab="reports">Reports</button>
     <button id="tab-settings" data-tab="settings">Settings</button>
   </nav>
   <span class="save" id="saveState" aria-live="polite"></span>
@@ -118,7 +133,7 @@ table.lines input,table.lines select{padding:6px 8px}
   <section class="view" id="view-today">
     <div class="row" style="justify-content:space-between;margin-bottom:12px">
       <div class="row"><label class="f" for="dayPick" style="flex-direction:row;align-items:center;gap:8px"><span>Fuel day (06:00 to 06:00)</span>
-        <input type="date" id="dayPick" style="width:auto"></label></div>
+        <input type="date" id="dayPick" style="width:auto"></label><span class="role" id="roleNote"></span></div>
       <div class="row"><button class="btn" id="newDay">Start day shift</button><button class="btn" id="newNight">Start night shift</button></div>
     </div>
     <div class="grid2" id="dayCards"><div class="panel empty">Loading shifts…</div></div>
@@ -126,6 +141,11 @@ table.lines input,table.lines select{padding:6px 8px}
       <div class="row" style="justify-content:space-between"><h2>Fuel, 24 hours</h2><span class="small muted">Opening tanks at the day shift start, closing at the night shift end</span></div>
       <div class="tablewrap" id="fuelDay"></div>
       <ul class="alerts" id="fuelDayAlerts"></ul>
+    </div>
+    <div class="panel stack" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between"><h2>Tanks and order check</h2><span class="small muted" id="tankAsOf"></span></div>
+      <div class="tablewrap" id="tankLevels"></div>
+      <div class="tablewrap" id="orderRoom"></div>
     </div>
     <div class="panel stack" style="margin-top:12px">
       <div class="row" style="justify-content:space-between"><h2>Morning brief</h2><button class="btn small" id="copyBrief">Copy</button></div>
@@ -141,13 +161,10 @@ table.lines input,table.lines select{padding:6px 8px}
     <div id="shiftEmpty" class="panel empty">Choose a shift on the Today tab, or start a new one.</div>
     <div id="shiftWrap" hidden>
       <div class="row" style="justify-content:space-between;margin-bottom:10px">
-        <div class="stack" style="gap:4px"><h2 id="shiftTitle"></h2><div class="stepper" id="stepper"></div></div>
+        <div class="stack" style="gap:4px"><h2 id="shiftTitle"></h2><div class="stepper" id="stepper"></div><div class="small muted" id="modeNote"></div></div>
         <div class="row" id="actions"></div>
       </div>
-      <div id="reopenBox" class="panel row" hidden style="margin-bottom:10px">
-        <label class="f" for="reopenReason" style="flex:1">Reason for reopening (kept in the history)<input id="reopenReason" type="text" placeholder="e.g. Batch 862 amount entered wrongly"></label>
-        <button class="btn primary" id="reopenGo">Reopen shift</button><button class="btn" id="reopenCancel">Cancel</button>
-      </div>
+      <div id="askBox" class="panel ask" hidden></div>
       <div class="shiftlayout">
         <div class="stack" id="form"></div>
         <aside class="side stack" id="side"></aside>
@@ -156,13 +173,20 @@ table.lines input,table.lines select{padding:6px 8px}
     </div>
   </section>
 
+  <section class="view" id="view-reports" hidden>
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <label class="f" for="monthPick" style="flex-direction:row;align-items:center;gap:8px"><span>Month</span><input type="month" id="monthPick" style="width:auto"></label>
+      <span class="small muted">Every table can be downloaded as CSV for Excel, or copied and pasted.</span>
+    </div>
+    <div class="stack" id="reports"><div class="panel empty">Loading shifts…</div></div>
+  </section>
+
   <section class="view" id="view-settings" hidden>
     <div class="stack" id="settingsForm"></div>
   </section>
 </div>
 
-<script>"use strict";var Engine=(()=>{var q=Object.defineProperty;var pe=Object.getOwnPropertyDescriptor;var me=Object.getOwnPropertyNames;var de=Object.prototype.hasOwnProperty;var fe=(t,s)=>{for(var a in s)q(t,a,{get:s[a],enumerable:!0})},he=(t,s,a,n)=>{if(s&&typeof s=="object"||typeof s=="function")for(let p of me(s))!de.call(t,p)&&p!==a&&q(t,p,{get:()=>s[p],enumerable:!(n=pe(s,p))||n.enumerable});return t};var ge=t=>he(q({},"__esModule",{value:!0}),t);var be={};fe(be,{evaluateFuelDay:()=>ce,evaluateShift:()=>ue,litres:()=>re,rand:()=>se,showLitres:()=>P,showRand:()=>g});function ne(t,s){var m;let a=String(t).replace(/[R,\s]/g,""),n=/^(-)?(\d+)(?:\.(\d{1,2}))?$/.exec(a);if(!n)throw new Error(`Invalid ${s}: "${t}"`);let p=Number(n[2]),o=Number(((m=n[3])!=null?m:"0").padEnd(2,"0")),S=p*100+o;return n[1]?-S:S}var se=t=>ne(t,"amount"),re=t=>ne(t,"volume"),R=t=>{for(let s of t)if(!Number.isInteger(s))throw new Error(`Non-integer value ${s}`);return t.reduce((s,a)=>s+a,0)},z=t=>{let s=t<0?"-":"",a=Math.abs(t),n=String(Math.floor(a/100)).replace(/\B(?=(\d{3})+(?!\d))/g,",");return`${s}${n}.${String(a%100).padStart(2,"0")}`},g=t=>t<0?`-R${z(-t)}`:`R${z(t)}`,P=t=>`${z(t)} L`;var E=t=>R(t.map(s=>s.amount));function ae(t){var d,D,$,v;let s=t.payouts,a=[...s.customerRebates,...s.taxiRebates,...s.bowserRebates,...s.expenses],n={safeDrops:R(t.safeDrops),coins:t.coins,cardBatches:E(t.cardBatches),vouchers:E(t.vouchers),totalCard:E(t.totalCard),localAccounts:t.pos.localAccountTotal,unpaids:E(t.unpaids),unpaidPaid:E(t.unpaidPaid),payouts:E(a)},p=n.safeDrops+n.coins+n.cardBatches+n.vouchers+n.totalCard+n.localAccounts+n.unpaids-n.unpaidPaid+n.payouts,o=t.pos.salesTotal-p,S=o===0?"Balanced":o>0?`Short ${g(o)}`:`Over ${g(-o)}`,m=[],u=(f,x,h,y)=>{let k=x-h;m.push({name:f,status:k===0?"match":"mismatch",difference:k,detail:k===0?`${y} match (${g(x)})`:`${y} differ by ${g(k)} (${g(x)} vs ${g(h)})`})};u("Safe drops",n.safeDrops,t.pos.safeDropTotal,"Drop slips and POS safe drops"),u("Payouts",n.payouts,t.pos.payoutTotal,"Payout sheets and POS pay-outs"),a.length!==t.pos.payoutCount?m.push({name:"Payout count",status:"mismatch",detail:`${a.length} payout lines vs ${t.pos.payoutCount} on POS`}):m.push({name:"Payout count",status:"match",detail:`${a.length} payout lines`}),t.localAccountSheetTotal===void 0?m.push({name:"Local accounts",status:"not-checked",detail:"No account sheet total entered"}):u("Local accounts",t.localAccountSheetTotal,t.pos.localAccountTotal,"Account sheets and POS local accounts");let U=t.submittingCashier.posCashierNo===t.pos.cashierNo;m.push({name:"POS login",status:U?"match":"mismatch",detail:U?`POS login ${t.pos.cashierNo} belongs to ${t.submittingCashier.name}`:`POS login ${t.pos.cashierNo} ("${t.pos.cashierName}") but shift submitted by ${t.submittingCashier.name}`});for(let f of[...s.customerRebates,...s.taxiRebates,...s.bowserRebates]){let x=(v=(D=t.rebateRates)==null?void 0:D[`${f.customer}|${(d=f.grade)!=null?d:"*"}`])!=null?v:($=t.rebateRates)==null?void 0:$[`${f.customer}|*`];if(x===void 0||f.litres===void 0){m.push({name:`Rebate rate: ${f.customer}`,status:"not-checked",detail:f.litres===void 0?"No litres recorded":"No agreed rate on file"});continue}let h=Math.floor(f.litres*x/100),y=f.amount-h;m.push({name:`Rebate rate: ${f.customer}`,status:y===0?"match":"mismatch",difference:y,detail:y===0?`Paid ${g(f.amount)} at agreed rate`:`Paid ${g(f.amount)}, agreed rate gives ${g(h)}`})}return{shiftNo:t.shiftNo,accounted:p,shortOver:o,label:S,components:n,checks:m}}function oe(t,s){return[...new Set(t.map(n=>n.grade))].map(n=>{let p=t.filter(u=>u.grade===n);for(let u of p){if(!Number.isInteger(u.opening)||!Number.isInteger(u.closing))throw new Error(`Pump ${u.pump}: meter readings must be whole litres`);if(u.closing<u.opening)throw new Error(`Pump ${u.pump}: closing ${u.closing} is below opening ${u.opening}`)}let o=R(p.map(u=>(u.closing-u.opening)*100)),S=o-s[n],m=p.length*100;return{grade:n,pumps:p.length,meterLitres:o,posLitres:s[n],difference:S,withinRounding:Math.abs(S)<=m}})}function J(t){let s=t.openingTC+t.delivered-t.posSold,a=t.closingTC-s,n=t.posSold===0?0:a/t.posSold*100;return{expectedClosing:s,variance:a,pctOfSales:n}}function ie(t){let s=t.gaugeTCIncrease-t.truckMeter20C,a=s/t.truckMeter20C*100;return{tank:t.tank,difference:s,pct:a,flagged:Math.abs(a)>1}}function le(t,s){let a=Object.keys(s).map(Number).filter(n=>t[n]!==void 0&&t[n]!==s[n]).map(n=>({pump:n,previousClosing:t[n],opening:s[n],gap:s[n]-t[n]}));return{ok:a.length===0,breaks:a}}var _={D50:"Diesel 50",ULP95:"ULP 95",ULP93:"ULP 93"},i=t=>typeof t=="number"&&Number.isFinite(t)?t:null,j=(t="")=>t.trim().toLowerCase();function ue(t,s,a){var L,b,G,I,W,T,K,Q,X,Y,Z,ee,te;let n=[],p=[],o=t.pos||{};i(o.sales)===null&&p.push("POS sales total");let S=(e="",r="")=>{let c=Object.keys(s.rates).find(l=>{let[O,C]=l.split("|");return j(O)===j(e)&&(C===r||C==="*")});return c?s.rates[c]:void 0},m=s.staff.find(e=>j(e.name)===j(t.cashierName)),u=e=>{var r;return{label:e.who||e.type,customer:e.type==="taxi"?"Taxi":e.who||"",amount:e.amt,litres:(r=i(e.litres))!=null?r:void 0,grade:e.grade||void 0}},U={"Taxi|*":s.taxiRate};for(let e of t.payouts)if(e.type==="customer"||e.type==="bowser"){let r=S(e.who,e.grade||"");r!==void 0&&(U[`${e.who}|${e.grade||"*"}`]=r)}let d=ae({shiftNo:Number(t.posShiftNo)||0,submittingCashier:{name:t.cashierName||"",posCashierNo:(L=m==null?void 0:m.posNo)!=null?L:t.cashierPosNo},pos:{cashierNo:o.cashierNo||"",cashierName:o.cashierName||"",salesTotal:(b=i(o.sales))!=null?b:0,safeDropTotal:(G=i(o.safeDrops))!=null?G:0,payoutTotal:(I=i(o.payouts))!=null?I:0,payoutCount:(W=i(o.payoutCount))!=null?W:0,localAccountTotal:(K=(T=i(o.localAccounts))!=null?T:i(t.localSheet))!=null?K:0},safeDrops:t.drops.map(e=>e.amt),coins:(Q=i(t.coins))!=null?Q:0,cardBatches:t.batches.map(e=>({label:e.ref||"batch",amount:e.amt})),vouchers:t.vouchers.map(e=>({label:e.ref||"voucher",amount:e.amt})),totalCard:t.totalCard.map(e=>({label:e.ref||"Total Card",amount:e.amt})),localAccountSheetTotal:(X=i(t.localSheet))!=null?X:void 0,unpaids:t.unpaids.map(e=>({label:e.who,amount:e.amt,kind:e.kind||"customer"})),unpaidPaid:t.unpaidPaid.map(e=>({label:e.who,amount:e.amt})),payouts:{customerRebates:t.payouts.filter(e=>e.type==="customer").map(u),taxiRebates:t.payouts.filter(e=>e.type==="taxi").map(u),bowserRebates:t.payouts.filter(e=>e.type==="bowser").map(u),expenses:t.payouts.filter(e=>e.type==="expense").map(e=>({label:e.who||"expense",amount:e.amt}))},rebateRates:U}),D=d.checks.filter(e=>{var r;return e.name==="Safe drops"?i(o.safeDrops)!==null:e.name.startsWith("Payout")?i(o.payouts)!==null&&(e.name!=="Payout count"||i(o.payoutCount)!==null):e.name==="Local accounts"?i(o.localAccounts)!==null:e.name==="POS login"?!!o.cashierNo&&!!((r=m==null?void 0:m.posNo)!=null?r:t.cashierPosNo):!0});if(o.cashierNo){let e=s.staff.find(r=>r.posNo===o.cashierNo);e&&j(e.name)!==j(t.cashierName)&&!D.some(r=>r.name==="POS login")&&n.push({level:"red",area:"cash",text:`POS login ${o.cashierNo} belongs to ${e.name}, but this shift was worked by ${t.cashierName||"someone else"}`})}let $=null,v=null;if(i(o.cash)!==null&&($=o.cash-d.components.safeDrops-d.components.coins),i(o.cards)!==null&&(v=o.cards-(d.components.cardBatches+d.components.vouchers+d.components.totalCard+d.components.unpaids-d.components.unpaidPaid)),i(o.sales)!==null){let e=Math.abs(d.shortOver);e>s.tol.cashRed?n.push({level:"red",area:"cash",text:`Cash-up: ${d.label}`}):e>s.tol.cashAmber&&n.push({level:"amber",area:"cash",text:`Cash-up: ${d.label}`}),$!==null&&v!==null&&Math.abs($)>=1e4&&Math.abs(v)>=1e4&&Math.sign($)!==Math.sign(v)&&n.push({level:"info",area:"cash",text:`Cash ${$>0?"short":"over"} ${g(Math.abs($))} offset by cards ${v>0?"short":"over"} ${g(Math.abs(v))}. If this is not how unpaids were rung up, check for sales on the wrong payment type.`})}for(let e of D)e.status==="mismatch"&&n.push({level:e.name.startsWith("Rebate")?"amber":"red",area:"cash",text:`${e.name}: ${e.detail}`});t.drops.forEach((e,r)=>{i(e.slip)!==null&&e.slip!==e.amt&&n.push({level:"red",area:"cash",text:`Safe drop ${r+1}: drop R${(e.amt/100).toFixed(2)} but Deposita slip says R${(e.slip/100).toFixed(2)}`})});let f=t.totalCard.map((e,r)=>{let c=e.grade?s.totalCardRebate[e.grade]:void 0;if(i(e.cardAmt)===null||i(e.litres)===null||c===void 0)return{i:r,ok:null};let l=e.amt-e.cardAmt,O=Math.round(e.litres*c/1e3),C=Math.abs(l-O)<=1;return C||n.push({level:"red",area:"cash",text:`Total Card ${e.ref||r+1}: rebate ${g(l)} but agreed rate gives ${g(O)}`}),{i:r,ok:C,rebate:l,expected:O}}),x=Object.entries(t.pumps||{}).filter(([,e])=>i(e==null?void 0:e.open)!==null&&i(e==null?void 0:e.close)!==null).map(([e,r])=>({pump:Number(e),grade:s.pumps[e],opening:r.open,closing:r.close})),h=Object.keys(s.pumps).filter(e=>!x.some(r=>r.pump===Number(e)));h.length&&p.push(`pump readings (${h.join(", ")})`);for(let e of x)e.closing<e.opening&&n.push({level:"red",area:"paperwork",text:`Pump ${e.pump}: closing ${e.closing} is below opening ${e.opening}`});let y=x.filter(e=>e.closing>=e.opening),k=o.litres||{},F=[];for(let e of["D50","ULP95","ULP93"]){let r=y.filter(C=>C.grade===e);if(!r.length)continue;let c=i(k[e]);if(c===null){F.push({grade:e,meterLitres:R(r.map(C=>(C.closing-C.opening)*100)),posLitres:null,difference:null,withinRounding:null});continue}let[l]=oe(r,{D50:0,ULP95:0,ULP93:0,[e]:c});F.push(l);let O=c?Math.abs(l.difference)/c*100:0;l.withinRounding||n.push({level:"amber",area:"fuel",text:`${_[e]}: pumps dispensed ${P(l.meterLitres)}, POS sold ${P(c)} (${l.difference>0?"+":""}${P(l.difference)})`})}let B=null;if(a){let e={},r={};for(let[c,l]of Object.entries(a.pumps||{}))i(l==null?void 0:l.close)!==null&&(e[Number(c)]=l.close);for(let[c,l]of Object.entries(t.pumps||{}))i(l==null?void 0:l.open)!==null&&(r[Number(c)]=l.open);B=le(e,r);for(let c of B.breaks)n.push({level:"red",area:"paperwork",text:`Pump ${c.pump}: opening ${c.opening} does not match previous closing ${c.previousClosing} (${c.gap>0?"+":""}${c.gap} L)`})}let N=[],M=((Y=t.tanks)==null?void 0:Y.open)||{},A=((Z=t.tanks)==null?void 0:Z.close)||{};for(let e of["D50","ULP95","ULP93"]){let r=Object.keys(s.tanks).filter(w=>s.tanks[w].grade===e);if(!r.length||r.some(w=>i(M[w])===null||i(A[w])===null)||i(k[e])===null)continue;let c=R(r.map(w=>M[w])),l=R(r.map(w=>A[w])),O=R((t.deliveries||[]).filter(w=>r.includes(String(w.tank))).map(w=>w.truck)),C=J({openingTC:c,delivered:O,posSold:k[e],closingTC:l});N.push({grade:e,opening:c,delivered:O,sold:k[e],closing:l,...C}),Math.abs(C.pctOfSales)>s.tol.tankPct&&Math.abs(C.variance)>r.length*500&&n.push({level:"amber",area:"fuel",text:`${_[e]} tanks this shift: ${C.variance<0?"loss":"gain"} of ${P(Math.abs(C.variance))} (${C.pctOfSales.toFixed(2)}% of sales)`})}N.length||p.push("tank gauge readings (opening and closing)");let H=(t.deliveries||[]).filter(e=>i(e.gauge)!==null&&e.truck>0).map(e=>{let r=ie({tank:Number(e.tank),truckMeter20C:e.truck,gaugeTCIncrease:e.gauge});return Math.abs(r.pct)>s.tol.dropPct&&n.push({level:"amber",area:"fuel",text:`Delivery to tank ${e.tank}: gauge rose ${P(e.gauge)}, truck meter ${P(e.truck)} (${r.pct>0?"+":""}${r.pct.toFixed(1)}%)`}),r});for(let e of t.unpaids)e.kind==="staff-overfill"&&n.push({level:"info",area:"cash",text:`Staff overfill: ${e.who} ${g(e.amt)}`});let V={red:0,amber:1,info:2};return n.sort((e,r)=>V[e.level]-V[r.level]),{cash:{...d,checks:D,cashSide:$,cardSide:v},totalCard:f,fuel:{grades:F,tanks:N,deliveries:H},continuity:B,alerts:n,missing:p,worst:(te=(ee=n.find(e=>e.level!=="info"))==null?void 0:ee.level)!=null?te:"ok"}}function ce(t,s,a){var S,m,u,U,d,D,$,v,f,x;let n=[],p=[];for(let h of["D50","ULP95","ULP93"]){let y=Object.keys(a.pumps).filter(b=>a.pumps[b]===h),k=0;for(let b of y){let G=i((m=(S=t.pumps)==null?void 0:S[b])==null?void 0:m.open),I=i((U=(u=s.pumps)==null?void 0:u[b])==null?void 0:U.close);if(G===null||I===null){k=null;break}k+=(I-G)*100}let F=i((D=(d=t.pos)==null?void 0:d.litres)==null?void 0:D[h]),B=i((v=($=s.pos)==null?void 0:$.litres)==null?void 0:v[h]),N=F!==null&&B!==null?F+B:null,M=k!==null&&N!==null?k-N:null;if(M!==null&&N){let b=Math.abs(M)/N*100;Math.abs(M)>y.length*100&&n.push({level:b>a.tol.pumpPct?"red":"amber",area:"fuel",text:`${_[h]}: pumps dispensed ${P(k)}, POS sold ${P(N)} (${M>0?"+":""}${P(M)})`})}let A=Object.keys(a.tanks).filter(b=>a.tanks[b].grade===h),H=((f=t.tanks)==null?void 0:f.open)||{},V=((x=s.tanks)==null?void 0:x.close)||{},L=null;if(A.length&&A.every(b=>i(H[b])!==null&&i(V[b])!==null)&&N!==null){let b=R(A.map(T=>H[T])),G=R(A.map(T=>V[T])),I=R([...t.deliveries||[],...s.deliveries||[]].filter(T=>A.includes(String(T.tank))).map(T=>T.truck));L={opening:b,delivered:I,closing:G,...J({openingTC:b,delivered:I,posSold:N,closingTC:G})};let W=Math.abs(L.pctOfSales);W>a.tol.tankPct&&Math.abs(L.variance)>A.length*500&&n.push({level:W>.5?"red":"amber",area:"fuel",text:`${_[h]} tanks, 24 h: ${L.variance<0?"loss":"gain"} of ${P(Math.abs(L.variance))} (${L.pctOfSales.toFixed(2)}% of sales)`})}p.push({grade:h,meter:k,pos:N,pumpDiff:M,tank:L})}let o={red:0,amber:1,info:2};return n.sort((h,y)=>o[h.level]-o[y.level]),{grades:p,alerts:n}}return ge(be);})();
-</script>
+<script>"use strict";var Engine=(()=>{var E=Object.defineProperty;var pe=Object.getOwnPropertyDescriptor;var me=Object.getOwnPropertyNames;var de=Object.prototype.hasOwnProperty;var fe=(e,n)=>{for(var r in n)E(e,r,{get:n[r],enumerable:!0})},he=(e,n,r,s)=>{if(n&&typeof n=="object"||typeof n=="function")for(let i of me(n))!de.call(e,i)&&i!==r&&E(e,i,{get:()=>n[i],enumerable:!(s=pe(n,i))||s.enumerable});return e};var be=e=>he(E({},"__esModule",{value:!0}),e);var Ce={};fe(Ce,{TOL_DEFAULTS:()=>_,evaluateFuelDay:()=>le,evaluateShift:()=>oe,litres:()=>X,localSheetTotal:()=>H,lossStreak:()=>ie,orderRoom:()=>ue,rand:()=>Q,showLitres:()=>R,showRand:()=>C});function K(e,n){let r=String(e).replace(/[R,\s]/g,""),s=/^(-)?(\d+)(?:\.(\d{1,2}))?$/.exec(r);if(!s)throw new Error(`Invalid ${n}: "${e}"`);let i=Number(s[2]),f=Number((s[3]??"0").padEnd(2,"0")),o=i*100+f;return s[1]?-o:o}var Q=e=>K(e,"amount"),X=e=>K(e,"volume"),v=e=>{for(let n of e)if(!Number.isInteger(n))throw new Error(`Non-integer value ${n}`);return e.reduce((n,r)=>n+r,0)},I=e=>{let n=e<0?"-":"",r=Math.abs(e),s=String(Math.floor(r/100)).replace(/\B(?=(\d{3})+(?!\d))/g,",");return`${n}${s}.${String(r%100).padStart(2,"0")}`},C=e=>e<0?`-R${I(-e)}`:`R${I(e)}`,R=e=>`${I(e)} L`;var O=e=>v(e.map(n=>n.amount));function Y(e){let n=e.payouts,r=[...n.customerRebates,...n.taxiRebates,...n.bowserRebates,...n.expenses],s={safeDrops:v(e.safeDrops),coins:e.coins,cardBatches:O(e.cardBatches),vouchers:O(e.vouchers),totalCard:O(e.totalCard),localAccounts:e.pos.localAccountTotal,unpaids:O(e.unpaids),unpaidPaid:O(e.unpaidPaid),payouts:O(r)},i=s.safeDrops+s.coins+s.cardBatches+s.vouchers+s.totalCard+s.localAccounts+s.unpaids-s.unpaidPaid+s.payouts,f=e.pos.salesTotal-i,o=f===0?"Balanced":f>0?`Short ${C(f)}`:`Over ${C(-f)}`,b=[],p=(k,u,P,g)=>{let L=u-P;b.push({name:k,status:L===0?"match":"mismatch",difference:L,detail:L===0?`${g} match (${C(u)})`:`${g} differ by ${C(L)} (${C(u)} vs ${C(P)})`})};p("Safe drops",s.safeDrops,e.pos.safeDropTotal,"Drop slips and POS safe drops"),p("Payouts",s.payouts,e.pos.payoutTotal,"Payout sheets and POS pay-outs"),r.length!==e.pos.payoutCount?b.push({name:"Payout count",status:"mismatch",detail:`${r.length} payout lines vs ${e.pos.payoutCount} on POS`}):b.push({name:"Payout count",status:"match",detail:`${r.length} payout lines`}),e.localAccountSheetTotal===void 0?b.push({name:"Local accounts",status:"not-checked",detail:"No account sheet total entered"}):p("Local accounts",e.localAccountSheetTotal,e.pos.localAccountTotal,"Account sheets and POS local accounts");let x=e.submittingCashier.posCashierNo===e.pos.cashierNo;b.push({name:"POS login",status:x?"match":"mismatch",detail:x?`POS login ${e.pos.cashierNo} belongs to ${e.submittingCashier.name}`:`POS login ${e.pos.cashierNo} ("${e.pos.cashierName}") but shift submitted by ${e.submittingCashier.name}`});for(let k of[...n.customerRebates,...n.taxiRebates,...n.bowserRebates]){let u=e.rebateRates?.[`${k.customer}|${k.grade??"*"}`]??e.rebateRates?.[`${k.customer}|*`];if(u===void 0||k.litres===void 0){b.push({name:`Rebate rate: ${k.customer}`,status:"not-checked",detail:k.litres===void 0?"No litres recorded":"No agreed rate on file"});continue}let P=Math.floor(k.litres*u/100),g=k.amount-P;b.push({name:`Rebate rate: ${k.customer}`,status:g===0?"match":"mismatch",difference:g,detail:g===0?`Paid ${C(k.amount)} at agreed rate`:`Paid ${C(k.amount)}, agreed rate gives ${C(P)}`})}return{shiftNo:e.shiftNo,accounted:i,shortOver:f,label:o,components:s,checks:b}}function Z(e,n){return[...new Set(e.map(s=>s.grade))].map(s=>{let i=e.filter(p=>p.grade===s);for(let p of i){if(!Number.isInteger(p.opening)||!Number.isInteger(p.closing))throw new Error(`Pump ${p.pump}: meter readings must be whole litres`);if(p.closing<p.opening)throw new Error(`Pump ${p.pump}: closing ${p.closing} is below opening ${p.opening}`)}let f=v(i.map(p=>(p.closing-p.opening)*100)),o=f-n[s],b=i.length*100;return{grade:s,pumps:i.length,meterLitres:f,posLitres:n[s],difference:o,withinRounding:Math.abs(o)<=b}})}function B(e){let n=e.openingTC+e.delivered-e.posSold,r=e.closingTC-n,s=e.posSold===0?0:r/e.posSold*100;return{expectedClosing:n,variance:r,pctOfSales:s}}function ee(e){let n=e.bolLoaded20C-e.truckMeter20C,r=n-e.returnedRecorded,s,i;return e.gaugeTCBefore!==void 0&&e.gaugeTCAfter!==void 0&&(s=e.gaugeTCAfter-e.gaugeTCBefore+(e.soldDuringDelivery??0),i=s-e.truckMeter20C),{notDelivered:n,unexplained:r,tankReceived:s,variance:i,varianceIsEstimate:!!e.soldIsEstimate}}function te(e){let n=Math.floor(e.capacity*e.safeFillPct/100);return Math.max(0,n-e.currentTC+e.forecastSalesUntilArrival)}var ne=(e,n)=>Math.round((e-n)*10)/10;function se(e){let n=e.gaugeTCIncrease-e.truckMeter20C,r=n/e.truckMeter20C*100;return{tank:e.tank,difference:n,pct:r,flagged:Math.abs(r)>1}}function re(e,n){let r=e>0?"short":e<0?"over":void 0,s=Math.abs(e)===n.amount,i=n.direction===void 0||r===void 0||n.direction===r;return{ok:s&&i,amountOk:s,directionOk:i,calcDir:r,difference:Math.abs(e)-n.amount}}function ae(e,n){let r=Object.keys(n).map(Number).filter(s=>e[s]!==void 0&&e[s]!==n[s]).map(s=>({pump:s,previousClosing:e[s],opening:n[s],gap:n[s]-e[s]}));return{ok:r.length===0,breaks:r}}var _={dropAmberPct:.5,dipAmberMm:10,dipRedMm:25,tankLowAmberPct:25,tankLowRedPct:15},ge=e=>({..._,...Object.fromEntries(Object.entries(e.tol).filter(([,n])=>typeof n=="number"))});function H(e){let n=(e.accounts||[]).filter(r=>typeof r.amt=="number");return n.length?v(n.map(r=>r.amt)):typeof e.localSheet=="number"?e.localSheet:null}var D={D50:"Diesel 50",ULP95:"ULP 95",ULP93:"ULP 93"},l=e=>typeof e=="number"&&Number.isFinite(e)?e:null,U=(e="")=>e.trim().toLowerCase();function oe(e,n,r){let s=[],i=ge(n);e={...e,localSheet:H(e)};let f=[],o=e.pos||{};l(o.sales)===null&&f.push("POS sales total");let b=(t="",a="")=>{let c=Object.keys(n.rates).find(m=>{let[S,h]=m.split("|");return U(S)===U(t)&&(h===a||h==="*")});return c?n.rates[c]:void 0},p=n.staff.find(t=>U(t.name)===U(e.cashierName)),x=t=>({label:t.who||t.type,customer:t.type==="taxi"?"Taxi":t.who||"",amount:t.amt,litres:l(t.litres)??void 0,grade:t.grade||void 0}),k={"Taxi|*":n.taxiRate};for(let t of e.payouts)if(t.type==="customer"||t.type==="bowser"){let a=b(t.who,t.grade||"");a!==void 0&&(k[`${t.who}|${t.grade||"*"}`]=a)}let u=Y({shiftNo:Number(e.posShiftNo)||0,submittingCashier:{name:e.cashierName||"",posCashierNo:p?.posNo??e.cashierPosNo},pos:{cashierNo:o.cashierNo||"",cashierName:o.cashierName||"",salesTotal:l(o.sales)??0,safeDropTotal:l(o.safeDrops)??0,payoutTotal:l(o.payouts)??0,payoutCount:l(o.payoutCount)??0,localAccountTotal:l(o.localAccounts)??l(e.localSheet)??0},safeDrops:e.drops.map(t=>t.amt),coins:l(e.coins)??0,cardBatches:e.batches.map(t=>({label:t.ref||"batch",amount:t.amt})),vouchers:e.vouchers.map(t=>({label:t.ref||"voucher",amount:t.amt})),totalCard:e.totalCard.map(t=>({label:t.ref||"Total Card",amount:t.amt})),localAccountSheetTotal:l(e.localSheet)??void 0,unpaids:e.unpaids.map(t=>({label:t.who,amount:t.amt,kind:t.kind||"customer"})),unpaidPaid:e.unpaidPaid.map(t=>({label:t.who,amount:t.amt})),payouts:{customerRebates:e.payouts.filter(t=>t.type==="customer").map(x),taxiRebates:e.payouts.filter(t=>t.type==="taxi").map(x),bowserRebates:e.payouts.filter(t=>t.type==="bowser").map(x),expenses:e.payouts.filter(t=>t.type==="expense").map(t=>({label:t.who||"expense",amount:t.amt}))},rebateRates:k}),P=u.checks.filter(t=>t.name==="Safe drops"?l(o.safeDrops)!==null:t.name.startsWith("Payout")?l(o.payouts)!==null&&(t.name!=="Payout count"||l(o.payoutCount)!==null):t.name==="Local accounts"?l(o.localAccounts)!==null:t.name==="POS login"?!!o.cashierNo&&!!(p?.posNo??e.cashierPosNo):!0);if(o.cashierNo){let t=n.staff.find(a=>a.posNo===o.cashierNo);t&&U(t.name)!==U(e.cashierName)&&!P.some(a=>a.name==="POS login")&&s.push({level:"red",area:"cash",text:`POS login ${o.cashierNo} belongs to ${t.name}, but this shift was worked by ${e.cashierName||"someone else"}`})}let g=null,L=null;if(l(o.cash)!==null&&(g=o.cash-u.components.safeDrops-u.components.coins),l(o.cards)!==null&&(L=o.cards-(u.components.cardBatches+u.components.vouchers+u.components.totalCard+u.components.unpaids-u.components.unpaidPaid)),l(o.sales)!==null){let t=Math.abs(u.shortOver);t>n.tol.cashRed?s.push({level:"red",area:"cash",text:`Cash-up: ${u.label}`}):t>n.tol.cashAmber&&s.push({level:"amber",area:"cash",text:`Cash-up: ${u.label}`}),g!==null&&L!==null&&Math.abs(g)>=1e4&&Math.abs(L)>=1e4&&Math.sign(g)!==Math.sign(L)&&s.push({level:"info",area:"cash",text:`Cash ${g>0?"short":"over"} ${C(Math.abs(g))} offset by cards ${L>0?"short":"over"} ${C(Math.abs(L))}. If this is not how unpaids were rung up, check for sales on the wrong payment type.`})}for(let t of P)t.status==="mismatch"&&s.push({level:t.name.startsWith("Rebate")?"amber":"red",area:"cash",text:`${t.name}: ${t.detail}`});e.drops.forEach((t,a)=>{l(t.slip)!==null&&t.slip!==t.amt&&s.push({level:"red",area:"cash",text:`Safe drop ${a+1}: drop R${(t.amt/100).toFixed(2)} but Deposita slip says R${(t.slip/100).toFixed(2)}`})});let G=e.totalCard.map((t,a)=>{let c=t.grade?n.totalCardRebate[t.grade]:void 0;if(l(t.cardAmt)===null||l(t.litres)===null||c===void 0)return{i:a,ok:null};let m=t.amt-t.cardAmt,S=Math.round(t.litres*c/1e3),h=Math.abs(m-S)<=1;return h||s.push({level:"red",area:"cash",text:`Total Card ${t.ref||a+1}: rebate ${C(m)} but agreed rate gives ${C(S)}`}),{i:a,ok:h,rebate:m,expected:S}}),w=Object.entries(e.pumps||{}).filter(([,t])=>l(t?.open)!==null&&l(t?.close)!==null).map(([t,a])=>({pump:Number(t),grade:n.pumps[t],opening:a.open,closing:a.close})),y=Object.keys(n.pumps).filter(t=>!w.some(a=>a.pump===Number(t)));y.length&&f.push(`pump readings (${y.join(", ")})`);for(let t of w)t.closing<t.opening&&s.push({level:"red",area:"paperwork",text:`Pump ${t.pump}: closing ${t.closing} is below opening ${t.opening}`});let T=w.filter(t=>t.closing>=t.opening),N=o.litres||{},A=[];for(let t of["D50","ULP95","ULP93"]){let a=T.filter(h=>h.grade===t);if(!a.length)continue;let c=l(N[t]);if(c===null){A.push({grade:t,meterLitres:v(a.map(h=>(h.closing-h.opening)*100)),posLitres:null,difference:null,withinRounding:null});continue}let[m]=Z(a,{D50:0,ULP95:0,ULP93:0,[t]:c});A.push(m);let S=c?Math.abs(m.difference)/c*100:0;m.withinRounding||s.push({level:"amber",area:"fuel",text:`${D[t]}: pumps dispensed ${R(m.meterLitres)}, POS sold ${R(c)} (${m.difference>0?"+":""}${R(m.difference)})`})}let M=null;if(r){let t={},a={};for(let[c,m]of Object.entries(r.pumps||{}))l(m?.close)!==null&&(t[Number(c)]=m.close);for(let[c,m]of Object.entries(e.pumps||{}))l(m?.open)!==null&&(a[Number(c)]=m.open);M=ae(t,a);for(let c of M.breaks)s.push({level:"red",area:"paperwork",text:`Pump ${c.pump}: opening ${c.opening} does not match previous closing ${c.previousClosing} (${c.gap>0?"+":""}${c.gap} L)`})}let F=[],V=e.tanks?.open||{},W=e.tanks?.close||{};for(let t of["D50","ULP95","ULP93"]){let a=Object.keys(n.tanks).filter(d=>n.tanks[d].grade===t);if(!a.length||a.some(d=>l(V[d])===null||l(W[d])===null)||l(N[t])===null)continue;let c=v(a.map(d=>V[d])),m=v(a.map(d=>W[d])),S=v((e.deliveries||[]).filter(d=>a.includes(String(d.tank))).map(d=>d.truck)),h=B({openingTC:c,delivered:S,posSold:N[t],closingTC:m});F.push({grade:t,opening:c,delivered:S,sold:N[t],closing:m,...h}),Math.abs(h.pctOfSales)>n.tol.tankPct&&Math.abs(h.variance)>a.length*500&&s.push({level:"amber",area:"fuel",text:`${D[t]} tanks this shift: ${h.variance<0?"loss":"gain"} of ${R(Math.abs(h.variance))} (${h.pctOfSales.toFixed(2)}% of sales)`})}F.length||f.push("tank gauge readings (opening and closing)");let ce=(e.deliveries||[]).filter(t=>l(t.gauge)!==null&&t.truck>0).map(t=>{let a=se({tank:Number(t.tank),truckMeter20C:t.truck,gaugeTCIncrease:t.gauge});return Math.abs(a.pct)>i.dropAmberPct&&s.push({level:Math.abs(a.pct)>i.dropPct?"red":"amber",area:"fuel",text:`Delivery to tank ${t.tank}: gauge rose ${R(t.gauge)}, truck meter ${R(t.truck)} (${a.pct>0?"+":""}${a.pct.toFixed(1)}%)`}),a}),q=[];for(let t of["D50","ULP95","ULP93"]){let a=(e.deliveryNotes||[]).filter(d=>d.grade===t&&l(d.bol)!==null);if(!a.length)continue;let c=Object.keys(n.tanks).filter(d=>n.tanks[d].grade===t),m=v((e.deliveries||[]).filter(d=>c.includes(String(d.tank))&&l(d.truck)!==null).map(d=>d.truck)),S=v(a.map(d=>d.bol)),h=v(a.map(d=>l(d.returned)??0)),$=ee({bolLoaded20C:S,truckMeter20C:m,returnedRecorded:h});q.push({grade:t,loaded:S,delivered:m,returned:h,notDelivered:$.notDelivered,unexplained:$.unexplained}),$.unexplained>0?s.push({level:"red",area:"fuel",text:`${D[t]} delivery: ${R($.unexplained)} loaded but neither delivered nor recorded as returned`}):$.unexplained<0?s.push({level:"red",area:"fuel",text:`${D[t]} delivery: truck meters and returns add up to ${R(-$.unexplained)} more than the BOL loaded`}):$.notDelivered>0&&s.push({level:"info",area:"fuel",text:`${D[t]} delivery: ${R($.notDelivered)} not delivered, matched to the recorded return`})}let z=[];for(let t of Object.keys(n.tanks)){let a=e.tanks?.dip?.[t],c=l(a?.gaugeMm),m=l(a?.stickMm);if(c!==null&&m!==null){let $=ne(m,c);z.push({tank:t,gaugeMm:c,stickMm:m,difference:$});let d=Math.abs($);d>i.dipAmberMm&&s.push({level:d>i.dipRedMm?"red":"amber",area:"fuel",text:`Tank ${t}: stick dip ${m} mm vs gauge ${c} mm (${$>0?"+":""}${$} mm)`})}let S=l(e.tanks?.water?.[t]);S!==null&&S>0&&s.push({level:"red",area:"fuel",text:`Tank ${t}: ${S} mm of water on the gauge`});let h=l(e.tanks?.close?.[t]);if(h!==null&&n.tanks[t].capacity>0){let $=h/(n.tanks[t].capacity*100)*100;$<i.tankLowAmberPct&&s.push({level:$<i.tankLowRedPct?"red":"amber",area:"fuel",text:`Tank ${t} (${D[n.tanks[t].grade]}) is at ${$.toFixed(0)}% (${R(h)})`})}}let j=null;if(l(e.stated?.amount)!==null&&l(o.sales)!==null){let t=e.stated?.direction||void 0;if(j=re(u.shortOver,{amount:e.stated.amount,direction:t}),!j.ok){let a=`${t?t+" ":""}${C(e.stated.amount)}`;s.push({level:"red",area:"paperwork",text:`Page 7 written as ${a}, but the calculation gives ${u.label.charAt(0).toLowerCase()+u.label.slice(1)}`})}}(l(o.discountsManual)??0)>0&&s.push({level:"amber",area:"cash",text:`Manual discounts on the POS: ${C(o.discountsManual)}. Discounts are normally automatic.`});for(let t of e.unpaids)t.kind==="staff-overfill"&&s.push({level:"info",area:"cash",text:`Staff overfill: ${t.who} ${C(t.amt)}`});let J={red:0,amber:1,info:2};return s.sort((t,a)=>J[t.level]-J[a.level]),{cash:{...u,checks:P,cashSide:g,cardSide:L},totalCard:G,fuel:{grades:A,tanks:F,deliveries:ce,deliveryNotes:q,dips:z},continuity:M,stated:j,alerts:s,missing:f,worst:s.find(t=>t.level!=="info")?.level??"ok"}}function le(e,n,r){let s=[],i=[];for(let o of["D50","ULP95","ULP93"]){let b=Object.keys(r.pumps).filter(y=>r.pumps[y]===o),p=0;for(let y of b){let T=l(e.pumps?.[y]?.open),N=l(n.pumps?.[y]?.close);if(T===null||N===null){p=null;break}p+=(N-T)*100}let x=l(e.pos?.litres?.[o]),k=l(n.pos?.litres?.[o]),u=x!==null&&k!==null?x+k:null,P=p!==null&&u!==null?p-u:null;if(P!==null&&u){let y=Math.abs(P)/u*100;Math.abs(P)>b.length*100&&s.push({level:y>r.tol.pumpPct?"red":"amber",area:"fuel",text:`${D[o]}: pumps dispensed ${R(p)}, POS sold ${R(u)} (${P>0?"+":""}${R(P)})`})}let g=Object.keys(r.tanks).filter(y=>r.tanks[y].grade===o),L=e.tanks?.open||{},G=n.tanks?.close||{},w=null;if(g.length&&g.every(y=>l(L[y])!==null&&l(G[y])!==null)&&u!==null){let y=v(g.map(M=>L[M])),T=v(g.map(M=>G[M])),N=v([...e.deliveries||[],...n.deliveries||[]].filter(M=>g.includes(String(M.tank))).map(M=>M.truck));w={opening:y,delivered:N,closing:T,...B({openingTC:y,delivered:N,posSold:u,closingTC:T})};let A=Math.abs(w.pctOfSales);A>r.tol.tankPct&&Math.abs(w.variance)>g.length*500&&s.push({level:A>.5?"red":"amber",area:"fuel",text:`${D[o]} tanks, 24 h: ${w.variance<0?"loss":"gain"} of ${R(Math.abs(w.variance))} (${w.pctOfSales.toFixed(2)}% of sales)`})}i.push({grade:o,meter:p,pos:u,pumpDiff:P,tank:w})}let f={red:0,amber:1,info:2};return s.sort((o,b)=>f[o.level]-f[b.level]),{grades:i,alerts:s}}function ie(e,n=0){let r=0;for(let s=e.length-1;s>=0;s--){let i=e[s];if(i===null||i>=-n)break;r++}return r}function ue(e,n,r={}){let s=e.safeFillPct??90;return["D50","ULP95","ULP93"].flatMap(i=>{let f=Object.keys(e.tanks).filter(x=>e.tanks[x].grade===i);if(!f.length||f.some(x=>l(n[x])===null))return[];let o=v(f.map(x=>e.tanks[x].capacity*100)),b=v(f.map(x=>n[x])),p=r[i]??0;return[{grade:i,tanks:f,capacity:o,current:b,pctFull:b/o*100,safeLevel:Math.floor(o*s/100),forecast:p,room:te({capacity:o,safeFillPct:s,currentTC:b,forecastSalesUntilArrival:p})}]})}return be(Ce);})();</script>
 <script>
 (function(){
 "use strict";
@@ -170,161 +194,334 @@ const E = window.Engine;
 const GRADES = ["D50","ULP95","ULP93"], GN = {D50:"Diesel 50",ULP95:"ULP 95",ULP93:"ULP 93"};
 const STATUSES = ["open","submitted","reconciled","signed"];
 const STATUS_LABEL = {open:"Open",submitted:"Submitted",reconciled:"Reconciled",signed:"Signed off"};
+const ROLES = ["cashier","supervisor","controller","checker","owner"];
+const ROLE_LABEL = {cashier:"Cashier",supervisor:"Forecourt supervisor",controller:"Cash-up controller",checker:"Checker",owner:"Owner / admin",all:"Pilot (no roles set)"};
+// Who fills in each part of the shift pack (spec section 4).
+const SECTION_ROLE = {details:"cashier",pumps:"cashier",drops:"cashier",batches:"cashier",vouchers:"cashier",totalCard:"cashier",local:"cashier",unpaids:"cashier",payouts:"cashier",
+  tanks:"supervisor",deliveries:"supervisor",pos:"controller",paper:"controller",photos:"any"};
 const DEFAULT_SETTINGS = {
   pumps:{"1":"ULP95","2":"D50","3":"D50","4":"ULP95","5":"D50","6":"ULP93","7":"D50","8":"ULP95","9":"ULP95","10":"D50"},
   tanks:{"1":{grade:"D50",capacity:22730},"2":{grade:"ULP95",capacity:22730},"3":{grade:"D50",capacity:13640},"4":{grade:"ULP93",capacity:8590},"5":{grade:"D50",capacity:13640}},
   rates:{}, taxiRate:80, totalCardRebate:{D50:4585},
-  tol:{cashAmber:0,cashRed:500,pumpPct:0.25,tankPct:0.3,dropPct:1}, staff:[]
+  tol:{cashAmber:0,cashRed:500,pumpPct:0.25,tankPct:0.3,dropPct:1,dropAmberPct:0.5,dipAmberMm:10,dipRedMm:25,tankLowAmberPct:25,tankLowRedPct:15}, staff:[],
+  safeFillPct:90, orderLeadDays:1, prices:{},
+  accounts:["Atomic Demolishers","City to City","JC Decaux","Khula","Moving Forward","Pick It Up","Raid","Servimix","Logistician","University of Johannesburg","Zamalangeni","Deon H2O"],
+  rebateCustomers:[], roles:{}
 };
-const st = { db:null, user:null, assets:null, me:null, canWrite:null, shifts:{}, settings:DEFAULT_SETTINGS, settingsLoaded:false,
-  tab:"today", day:null, curId:null, doc:null, saving:false, dirty:false, saveTimer:null, readOnly:false };
+const st = { db:null, user:null, assets:null, downloads:null, me:null, isOwner:false, canEdit:false, shifts:{}, settings:withDefaults({}), loaded:false,
+  tab:"today", day:null, dayChosen:false, month:null, curId:null, doc:null, saving:false, dirty:false, saveTimer:null, readOnly:false,
+  auditBase:null, auditEvt:null, correcting:false, corrReason:"", baseSavedAt:null, pendingChecked:false };
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs, ...kids) => { const e = document.createElement(tag);
   if (attrs) for (const [k,v] of Object.entries(attrs)) { if (v==null||v===false) continue;
     if (k==="class") e.className=v; else if (k==="text") e.textContent=v; else if (k.startsWith("on")) e.addEventListener(k.slice(2),v); else e.setAttribute(k, v===true?"":v); }
-  for (const k of kids.flat()) if (k!=null) e.append(k.nodeType?k:document.createTextNode(String(k)));
+  for (const k of kids.flat()) if (k!=null && k!=="") e.append(k.nodeType?k:document.createTextNode(String(k)));
   return e; };
 const fmtR = (c) => c==null ? "" : E.showRand(c);
 const fmtL = (cl) => cl==null ? "" : E.showLitres(cl);
+const sgnL = (cl) => cl==null ? "" : (cl>0?"+":"")+fmtL(cl);
 const fix2 = (v) => v==null ? "" : (v/100).toFixed(2);
+const lc1 = (s) => s.charAt(0).toLowerCase()+s.slice(1);
+const norm = (s) => String(s||"").trim().toLowerCase();
 const shiftId = (date, period) => `${date}_${period}`;
 const parseDate = (s) => { const [y,m,d]=s.split("-").map(Number); return new Date(Date.UTC(y,m-1,d)); };
 const addDays = (s, n) => { const d=parseDate(s); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+const daysBetween = (a, b) => Math.round((parseDate(b)-parseDate(a))/864e5);
 const prettyDate = (s) => parseDate(s).toLocaleDateString("en-ZA",{weekday:"short",day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+const shortDate = (s) => parseDate(s).toLocaleDateString("en-ZA",{day:"numeric",month:"short",timeZone:"UTC"});
 const todaySAST = () => { const d=new Date(Date.now()+2*3600e3 - 6*3600e3); return d.toISOString().slice(0,10); }; // fuel day starts 06:00
-const clone = (o) => JSON.parse(JSON.stringify(o));
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+const tot = (a, k="amt") => a.reduce((s,x)=>s+(typeof x[k]==="number"?x[k]:0),0);
+function withDefaults(s){ const d=clone(DEFAULT_SETTINGS); const o=Object.assign(d, clone(s||{})); o.tol=Object.assign(clone(DEFAULT_SETTINGS.tol), (s&&s.tol)||{});
+  for (const k of ["staff","accounts","rebateCustomers"]) if(!Array.isArray(o[k])) o[k]=clone(DEFAULT_SETTINGS[k]);
+  for (const k of ["rates","roles","prices","totalCardRebate"]) if(!o[k]||typeof o[k]!=="object") o[k]={};
+  return o; }
 const prevOf = (doc) => doc.period==="night" ? st.shifts[shiftId(doc.date,"day")] : st.shifts[shiftId(addDays(doc.date,-1),"night")];
 function emptyShift(date, period){
   const prev = prevOf({date,period});
   const pumps = {}; for (const p of Object.keys(st.settings.pumps)) pumps[p] = {open: prev?.pumps?.[p]?.close ?? null, close:null};
   const open = {}; for (const t of Object.keys(st.settings.tanks)) open[t] = prev?.tanks?.close?.[t] ?? null;
   return { date, period, status:"open", cashierName:"", posShiftNo:"", pumps,
-    pos:{sales:null,cash:null,cards:null,localAccounts:null,safeDrops:null,payouts:null,payoutCount:null,cashierNo:"",cashierName:"",litres:{D50:null,ULP95:null,ULP93:null}},
-    drops:[], coins:null, batches:[], vouchers:[], totalCard:[], localSheet:null, unpaids:[], unpaidPaid:[], payouts:[],
-    tanks:{open, close:{}}, deliveries:[], photos:[], events:[] };
+    pos:{sales:null,cash:null,cards:null,localAccounts:null,safeDrops:null,payouts:null,payoutCount:null,cashierNo:"",cashierName:"",litres:{D50:null,ULP95:null,ULP93:null},discountsAuto:null,discountsManual:null},
+    stated:{amount:null,direction:""},
+    drops:[], coins:null, batches:[], vouchers:[], totalCard:[], localSheet:null, accounts:[], unpaids:[], unpaidPaid:[], payouts:[],
+    tanks:{open, close:{}, dip:{}, water:{}}, deliveries:[], deliveryNotes:[], photos:[], events:[] };
 }
 function normalize(d){
   const b = emptyShift(d.date, d.period);
   const o = Object.assign(b, clone(d));
   o.pos = Object.assign(b.pos, o.pos||{}); o.pos.litres = Object.assign({D50:null,ULP95:null,ULP93:null}, o.pos.litres||{});
-  for (const k of ["drops","batches","vouchers","totalCard","unpaids","unpaidPaid","payouts","deliveries","photos","events"]) if(!Array.isArray(o[k])) o[k]=[];
-  o.tanks = o.tanks||{open:{},close:{}}; o.tanks.open=o.tanks.open||{}; o.tanks.close=o.tanks.close||{};
+  o.stated = Object.assign({amount:null,direction:""}, o.stated||{});
+  for (const k of ["drops","batches","vouchers","totalCard","accounts","unpaids","unpaidPaid","payouts","deliveries","deliveryNotes","photos","events"]) if(!Array.isArray(o[k])) o[k]=[];
+  o.tanks = o.tanks||{}; for (const k of ["open","close","dip","water"]) o.tanks[k]=o.tanks[k]||{};
   o.status = o.status||"open";
   return o;
 }
+const evalCache = new Map();
 function evalDoc(d){ try { return E.evaluateShift(d, st.settings, prevOf(d)||null); } catch(e){ console.error(e); return null; } }
+function evalId(id){ const d=st.shifts[id]; if(!d) return null; const key=id+"|"+JSON.stringify(d)+JSON.stringify(prevOf(d)||null);
+  if (evalCache.has(id) && evalCache.get(id).key===key) return evalCache.get(id).r;
+  const r = evalDoc(normalize(d)); evalCache.set(id,{key,r}); return r; }
+function fuelDayOf(date){ const a=st.shifts[shiftId(date,"day")], b=st.shifts[shiftId(date,"night")]; if(!a||!b) return null;
+  try { return E.evaluateFuelDay(normalize(a), normalize(b), st.settings); } catch(e){ console.error(e); return null; } }
 function level(r){ if(!r) return ""; if (r.alerts.some(a=>a.level==="red")) return "bad"; if (r.alerts.some(a=>a.level==="amber")) return "warn"; return "good"; }
 function resultText(r, d){ if(!r || d.pos?.sales==null) return "Not reconciled yet"; return r.cash.label; }
+const count = (r, lv) => r ? r.alerts.filter(a=>a.level===lv).length : 0;
+function pills(r){ const reds=count(r,"red"), amb=count(r,"amber"); return [reds?el("span",{class:"pill bad",text:reds+" red"}):null, amb?el("span",{class:"pill warn",text:amb+" amber"}):null]; }
 
-/* ---------- saving ---------- */
+/* ---------- roles and permissions ---------- */
+function myRole(){ if (st.isOwner || st.canEdit) return "owner"; const r=st.settings.roles||{};
+  if (!Object.keys(r).length) return "all"; return (st.me && r[st.me]) || null; }
+const has = (...roles) => { if (st.readOnly) return false; const r=myRole(); return r==="owner"||r==="all"||roles.includes(r); };
+function canEditSection(id){
+  const d=st.doc; if (!d || st.readOnly || !myRole() || id==="history") return false;
+  if (st.correcting) return has("controller");
+  const who = SECTION_ROLE[id]||"cashier";
+  if (d.status==="open") return who==="any" ? true : who==="controller" ? has("controller") : who==="supervisor" ? has("supervisor","controller") : has("cashier","controller");
+  if (d.status==="submitted") return who==="controller" ? has("controller") : who==="supervisor" ? has("supervisor","controller") : who==="any" ? has("supervisor","controller") : false;
+  return false;
+}
+
+/* ---------- audit trail: a changed number keeps the old value, who, when and why ---------- */
+const AUDIT_SKIP = new Set(["events","photos","status","submittedOnce","savedAt"]);
+function flat(o, pre, out){ if (o!==null && typeof o==="object"){ for (const [k,v] of Object.entries(o)) flat(v, pre?pre+"."+k:k, out); } else out[pre]=o; return out; }
+function diffDocs(a, b){
+  const fa=flat(a,"",{}), fb=flat(b,"",{}), out=[];
+  for (const k of new Set([...Object.keys(fa), ...Object.keys(fb)])){
+    if (AUDIT_SKIP.has(k.split(".")[0])) continue;
+    const x = fa[k]===undefined?null:fa[k], y = fb[k]===undefined?null:fb[k];
+    if (x===y || ((x===""||x===null) && (y===""||y===null))) continue;
+    out.push({f:k, from:x, to:y});
+  }
+  return out;
+}
+const LINE_NAME = {drops:"Safe drop",batches:"Card batch",vouchers:"Voucher",totalCard:"Total Card",accounts:"Account sale",unpaids:"Unpaid",unpaidPaid:"Unpaid paid",payouts:"Pay out",deliveries:"Delivery drop",deliveryNotes:"Delivery note"};
+const PROP_NAME = {amt:"amount",slip:"Deposita slip",seq:"sequence no.",ref:"ref",terminal:"terminal",card4:"card last 4",who:"name",kind:"type",note:"reg / reason",type:"type",grade:"grade",litres:"litres",
+  cardAmt:"card receipt",account:"account",reg:"reg no.",km:"km",tank:"tank",truck:"truck meter",gauge:"gauge increase",bol:"BOL loaded",returned:"returned",
+  sales:"sales total",cash:"cash",cards:"card tenders",localAccounts:"local accounts",safeDrops:"safe drops total",payouts:"pay out total",payoutCount:"pay out count",
+  cashierNo:"cashier no.",cashierName:"cashier name",discountsAuto:"automatic discounts",discountsManual:"manual discounts"};
+const TOP_NAME = {cashierName:"Cashier",posShiftNo:"POS shift no.",coins:"Coins",localSheet:"Account sheets total"};
+function pathLabel(p){
+  const s=p.split("."), top=s[0];
+  if (LINE_NAME[top]) return `${LINE_NAME[top]} ${Number(s[1])+1}, ${PROP_NAME[s[2]]||s[2]}`;
+  if (top==="pumps") return `Pump ${s[1]} ${PROP_NAME[s[2]]||s[2]}`.replace("open","opening").replace("close","closing");
+  if (top==="tanks"){ if (s[1]==="open"||s[1]==="close") return `Tank ${s[2]} ${s[1]==="open"?"opening":"closing"} TC`;
+    if (s[1]==="dip") return `Tank ${s[2]} ${s[3]==="gaugeMm"?"gauge height":"stick dip"}`; return `Tank ${s[2]} water`; }
+  if (top==="pos") return s[1]==="litres" ? `POS ${GN[s[2]]||s[2]} litres` : `POS ${PROP_NAME[s[1]]||s[1]}`;
+  if (top==="stated") return s[1]==="amount" ? "Page 7 written amount" : "Page 7 written direction";
+  return TOP_NAME[top]||p;
+}
+function fmtVal(p, v){
+  if (v===null||v===undefined||v==="") return "blank";
+  if (typeof v!=="number") return `"${v}"`;
+  if (/^pumps\.|payoutCount$|\.km$/.test(p)) return String(v);
+  if (/Mm$|^tanks\.water/.test(p)) return v+" mm";
+  if (/\.litres(\.|$)|\.(truck|gauge|bol|returned)$|^tanks\.(open|close)\./.test(p)) return fmtL(v);
+  if (/\.tank$/.test(p)) return "T"+v;
+  return fmtR(v);
+}
+function recordAudit(){
+  const d=st.doc; if (!st.auditBase || !d) return;
+  if (d.status==="open" && !d.submittedOnce){ st.auditBase=clone(d); return; }
+  const ch = diffDocs(st.auditBase, d); st.auditBase = clone(d);
+  if (!ch.length) return;
+  const action = st.correcting ? "Corrected" : d.status==="open" ? "Changed after send-back" : "Changed";
+  const note = st.correcting || d.status==="open" ? (st.corrReason||"") : "";
+  const last = st.auditEvt!=null ? d.events[st.auditEvt] : null;
+  if (last && last.action===action && last.note===note && last.by===(st.me||null)){
+    const m = new Map(last.changes.map(c=>[c.f,c]));
+    for (const c of ch){ const o=m.get(c.f); if (o) o.to=c.to; else m.set(c.f,c); }
+    last.changes = [...m.values()].filter(c=>JSON.stringify(c.from)!==JSON.stringify(c.to)); last.at=new Date().toISOString();
+  } else { d.events.push({action, by:st.me||null, at:new Date().toISOString(), note, changes:ch}); st.auditEvt=d.events.length-1; }
+}
+
+/* ---------- saving (with a copy kept on this device until the save lands) ---------- */
 function setSave(t){ $("saveState").textContent=t; }
-function scheduleSave(){ if(st.readOnly) return; st.dirty=true; setSave("Unsaved"); clearTimeout(st.saveTimer); st.saveTimer=setTimeout(flush, 700); }
+const pendKey = (id) => "sc.pending."+id;
+function keepPending(){ try{ localStorage.setItem(pendKey(st.curId), JSON.stringify({base:st.baseSavedAt||null, body:st.doc})); }catch(e){} }
+function clearPending(id){ try{ localStorage.removeItem(pendKey(id)); }catch(e){} }
+function scheduleSave(){ if(st.readOnly) return; st.dirty=true; keepPending(); setSave(navigator.onLine===false?"Offline · kept on this device":"Unsaved"); clearTimeout(st.saveTimer); st.saveTimer=setTimeout(flush, 700); }
 async function flush(){
   if (!st.db || !st.doc || st.saving || !st.dirty) return;
+  clearTimeout(st.saveTimer);
   st.saving=true; st.dirty=false; setSave("Saving…");
+  recordAudit();
+  st.doc.savedAt = new Date().toISOString();
   const id = st.curId, body = clone(st.doc);
-  try { await st.db.doc("shifts/"+id).set(body); setSave("Saved"); }
-  catch(e){ handleWriteError(e); st.dirty=true; }
-  finally { st.saving=false; if(st.dirty && !st.readOnly) st.saveTimer=setTimeout(flush, 1200); }
+  st.shifts[id] = clone(body);
+  try { await st.db.doc("shifts/"+id).set(body); st.baseSavedAt = body.savedAt; setSave("Saved"); if(!st.dirty) clearPending(id);
+    const hb=$("histBox"); if (hb && id===st.curId && hb.dataset.n!==String(body.events.length)+"|"+JSON.stringify(body.events.at(-1)||null).length) hb.replaceWith(historyBlock()); }
+  catch(e){ handleWriteError(e); st.dirty=true; keepPending(); }
+  finally { st.saving=false; if(st.dirty && !st.readOnly){ clearTimeout(st.saveTimer); st.saveTimer=setTimeout(flush, 1500); } }
 }
 function handleWriteError(e){
   console.error(e);
-  if (e && e.code==="invalid_argument"){ st.readOnly=true; setSave("Read only"); banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); applyLock(); }
+  if (e && e.code==="invalid_argument"){ st.readOnly=true; setSave("Read only"); banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); if(st.doc) applyLock(); }
   else if (e && e.code==="quota_exceeded") banner("Storage is full. Tell Abdul so old records can be archived.");
-  else setSave("Not saved, retrying");
+  else setSave(navigator.onLine===false?"Offline · kept on this device":"Not saved, retrying");
 }
-function banner(t){ $("banner").replaceChildren(t?el("div",{class:"notice",text:t}):""); }
-async function addEvent(action, note){
-  st.doc.events = st.doc.events||[];
-  st.doc.events.push({action, by: st.me||null, at:new Date().toISOString(), note: note||""});
+function banner(t, ...actions){ $("banner").replaceChildren(t?el("div",{class:"notice row",style:"justify-content:space-between"},el("span",{text:t}),actions.length?el("span",{class:"row"},actions):null):""); }
+function addEvent(action, note){ st.doc.events = st.doc.events||[]; st.doc.events.push({action, by: st.me||null, at:new Date().toISOString(), note: note||""}); st.auditEvt=null; }
+window.addEventListener("offline",()=>setSave("Offline · kept on this device"));
+window.addEventListener("online",()=>{ if(st.dirty) flush(); else setSave("Back online"); });
+async function checkPending(){
+  if (st.pendingChecked || !st.db || st.readOnly) return; st.pendingChecked=true;
+  let keys=[]; try{ for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith("sc.pending.")) keys.push(k); } }catch(e){ return; }
+  for (const k of keys){
+    let p=null; try{ p=JSON.parse(localStorage.getItem(k)); }catch(e){}
+    const id=k.slice("sc.pending.".length); if(!p||!p.body){ clearPending(id); continue; }
+    const server = st.shifts[id];
+    const same = server && JSON.stringify(normalize(server))===JSON.stringify(normalize(p.body));
+    if (same){ clearPending(id); continue; }
+    const label = prettyDate(p.body.date)+" "+p.body.period;
+    const push = async ()=>{ const body=clone(p.body); body.savedAt=new Date().toISOString(); try{ await st.db.doc("shifts/"+id).set(body); clearPending(id); banner(`Saved the changes this device kept for ${label}.`); }catch(e){ handleWriteError(e); } };
+    if (!server || (server.savedAt||null)===(p.base||null)) { await push(); }
+    else banner(`This device has unsaved changes to ${label}, but someone else changed that shift since.`,
+      el("button",{class:"btn small",onclick:push},"Use this device's version"), el("button",{class:"btn small",onclick:()=>{ clearPending(id); banner(""); }},"Discard them"));
+  }
 }
 
 /* ---------- tabs ---------- */
-function showTab(t){ st.tab=t;
+const TABS = ["today","shift","reports","settings"];
+function showTab(t){ if(!TABS.includes(t)) t="today"; st.tab=t;
   const mb=$("mbar"); if(mb) mb.hidden = t!=="shift";
-  for (const v of ["today","shift","settings"]) { $("view-"+v).hidden = v!==t; $("tab-"+v).setAttribute("aria-current", v===t?"page":"false"); }
-  if (t==="today") renderToday(); if (t==="shift") renderShift(); if (t==="settings") renderSettings();
+  for (const v of TABS) { $("view-"+v).hidden = v!==t; $("tab-"+v).setAttribute("aria-current", v===t?"page":"false"); }
+  if (t==="today") renderToday(); if (t==="shift") renderShift(); if (t==="reports") renderReports(); if (t==="settings") renderSettings();
   try{ localStorage.setItem("sc.tab", t); }catch(e){}
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
 
 /* ---------- Today ---------- */
 function shiftCard(date, period){
-  const d = st.shifts[shiftId(date,period)];
+  const id=shiftId(date,period), d = st.shifts[id];
   const title = period==="day" ? "Day shift · 06:00–18:00" : "Night shift · 18:00–06:00";
   if (!d) return el("div",{class:"panel shiftcard"},
     el("div",{class:"head"},el("h3",{text:title}),el("span",{class:"pill",text:"Not started"})),
     el("div",{class:"muted small",text:"No record for this shift yet."}),
-    el("div",{}, el("button",{class:"btn",onclick:()=>startShift(date,period),disabled:st.readOnly||!st.db},"Start this shift")));
-  const r = evalDoc(normalize(d)), lv = level(r);
-  const reds = r? r.alerts.filter(a=>a.level==="red"):[], ambers = r? r.alerts.filter(a=>a.level==="amber"):[];
+    el("div",{}, el("button",{class:"btn",onclick:()=>startShift(date,period),disabled:!canStart()},"Start this shift")));
+  const r = evalId(id), lv = level(r), reds = r? r.alerts.filter(a=>a.level==="red"):[];
   return el("div",{class:"panel shiftcard"},
     el("div",{class:"head"},el("h3",{text:title}),el("span",{class:"pill "+(d.status==="signed"?"good":"blue"),text:STATUS_LABEL[d.status||"open"]})),
     el("div",{class:"row",style:"justify-content:space-between"},
       el("div",{class:"result "+(d.pos?.sales==null?"":lv),text:resultText(r,d)}),
       el("div",{class:"small muted",text:[d.cashierName||"Cashier not set", d.posShiftNo?("POS shift "+d.posShiftNo):""].filter(Boolean).join(" · ")})),
-    el("div",{class:"row"}, reds.length?el("span",{class:"pill bad",text:reds.length+" red"}):null, ambers.length?el("span",{class:"pill warn",text:ambers.length+" amber"}):null,
-      r&&r.missing.length?el("span",{class:"pill",text:r.missing.length+" missing"}):null),
+    el("div",{class:"row"}, pills(r), r&&r.missing.length?el("span",{class:"pill",text:r.missing.length+" missing"}):null),
     reds.length? el("ul",{class:"alerts"}, reds.slice(0,3).map(a=>el("li",{class:"red",text:a.text}))):null,
-    el("div",{}, el("button",{class:"btn primary",onclick:()=>openShift(shiftId(date,period))},"Open shift")));
+    reds.length>3? el("div",{class:"small muted",text:`and ${reds.length-3} more red`}):null,
+    el("div",{}, el("button",{class:"btn primary",onclick:()=>openShift(id)},"Open shift")));
 }
+const canStart = () => !!st.db && !st.readOnly && has("cashier","supervisor","controller");
+function tankLevelClass(pct){ const t=st.settings.tol; return pct<t.tankLowRedPct?"bad":pct<t.tankLowAmberPct?"warn":""; }
+/** Tank variance per grade for each fuel day in [from, to], oldest first. */
+function fuelSeries(from, to){ const out=[]; for (let d=from; d<=to; d=addDays(d,1)) out.push({date:d, fd:fuelDayOf(d)}); return out; }
+function gradeVarLevel(g, t){ if(!t) return ""; const a=Math.abs(t.pctOfSales), ids=Object.keys(st.settings.tanks).filter(x=>st.settings.tanks[x].grade===g);
+  if (Math.abs(t.variance)<=ids.length*500 || a<=st.settings.tol.tankPct) return "good"; return a>0.5?"bad":"warn"; }
 function renderToday(){
   if(!st.dayChosen) st.day = latestDay() || todaySAST();
   $("dayPick").value = st.day;
+  const role=myRole(); $("roleNote").textContent = st.loaded ? (role ? "Signed in as "+ROLE_LABEL[role] : "No role yet: ask Abdul to add you in Settings") : "";
+  $("newDay").disabled = $("newNight").disabled = !canStart();
   $("dayCards").replaceChildren(shiftCard(st.day,"day"), shiftCard(st.day,"night"));
   const day = st.shifts[shiftId(st.day,"day")], night = st.shifts[shiftId(st.day,"night")];
-  let fd = null;
-  if (day && night){ try{ fd = E.evaluateFuelDay(normalize(day), normalize(night), st.settings); }catch(e){ console.error(e); } }
+  const fd = fuelDayOf(st.day);
+  const monthStart = st.day.slice(0,8)+"01";
+  const mtd = fuelSeries(monthStart, st.day), last10 = fuelSeries(addDays(st.day,-9), st.day);
+  const fuelAlerts = fd ? [...fd.alerts] : [];
   if (fd){
-    const t = el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Grade"}),el("th",{class:"n",text:"Pumps"}),el("th",{class:"n",text:"POS sold"}),el("th",{class:"n",text:"Pumps − POS"}),el("th",{class:"n",text:"Delivered"}),el("th",{class:"n",text:"Tank variance"}))),
-      el("tbody",{}, fd.grades.map(g=>el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meter)}),el("td",{class:"n",text:fmtL(g.pos)}),
-        el("td",{class:"n",text:g.pumpDiff==null?"":(g.pumpDiff>0?"+":"")+fmtL(g.pumpDiff)}),el("td",{class:"n",text:g.tank?fmtL(g.tank.delivered):""}),
-        el("td",{class:"n",text:g.tank?((g.tank.variance>0?"+":"")+fmtL(g.tank.variance)+" ("+g.tank.pctOfSales.toFixed(2)+"%)"):"needs gauge readings"})))));
+    const t = el("table",{}, el("thead",{},el("tr",{},["Grade","Pumps","POS sold","Pumps − POS","Delivered","Tank variance","Month to date"].map((h,i)=>el("th",{class:i?"n":"",text:h})))),
+      el("tbody",{}, fd.grades.map(g=>{
+        const m = mtd.map(x=>x.fd&&x.fd.grades.find(y=>y.grade===g.grade)).filter(y=>y&&y.tank);
+        const mv = m.reduce((a,y)=>a+y.tank.variance,0), ms = m.reduce((a,y)=>a+y.pos,0);
+        const streak = E.lossStreak(last10.map(x=>{ const y=x.fd&&x.fd.grades.find(z=>z.grade===g.grade); return y&&y.tank? y.tank.variance : null; }),
+          Object.keys(st.settings.tanks).filter(x=>st.settings.tanks[x].grade===g.grade).length*500);
+        if (streak>=3) fuelAlerts.unshift({level:"red",area:"fuel",text:`${GN[g.grade]} tanks: loss ${streak} days running`});
+        return el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meter)}),el("td",{class:"n",text:fmtL(g.pos)}),
+          el("td",{class:"n",text:sgnL(g.pumpDiff)}),el("td",{class:"n",text:g.tank?fmtL(g.tank.delivered):""}),
+          el("td",{class:"n "+gradeVarLevel(g.grade,g.tank),text:g.tank?(sgnL(g.tank.variance)+" ("+g.tank.pctOfSales.toFixed(2)+"%)"):"needs gauge readings"}),
+          el("td",{class:"n",text:m.length?`${sgnL(mv)} (${ms?(mv/ms*100).toFixed(2):"0.00"}%) · ${m.length} d`:""})); })));
     $("fuelDay").replaceChildren(t);
-    $("fuelDayAlerts").replaceChildren(...fd.alerts.map(a=>el("li",{class:a.level,text:a.text})));
-  } else { $("fuelDay").replaceChildren(el("div",{class:"empty small",text:"Shows once both shifts for this day are entered."})); $("fuelDayAlerts").replaceChildren(); }
-  $("brief").textContent = brief(st.day, day, night, fd);
+  } else $("fuelDay").replaceChildren(el("div",{class:"empty small",text:"Shows once both shifts for this day are entered."}));
+  $("fuelDayAlerts").replaceChildren(...fuelAlerts.map(a=>el("li",{class:a.level,text:a.text})));
+  renderTanks();
+  $("brief").textContent = brief(st.day, day, night, fd, fuelAlerts);
   const ids = Object.keys(st.shifts).sort().reverse().slice(0,20);
-  if(!ids.length){ $("recent").replaceChildren(el("div",{class:"empty",text:"No shifts yet. Start the day shift above to enter the first one."})); return; }
+  if(!ids.length){ $("recent").replaceChildren(el("div",{class:"empty",text:st.loaded?"No shifts yet. Start the day shift above to enter the first one.":"Loading shifts…"})); return; }
   $("recent").replaceChildren(el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Shift"}),el("th",{text:"Cashier"}),el("th",{text:"Status"}),el("th",{class:"n",text:"Result"}),el("th",{text:"Alerts"}))),
-    el("tbody",{}, ids.map(id=>{ const d=st.shifts[id], r=evalDoc(normalize(d)); const reds=r?r.alerts.filter(a=>a.level==="red").length:0, amb=r?r.alerts.filter(a=>a.level==="amber").length:0;
+    el("tbody",{}, ids.map(id=>{ const d=st.shifts[id], r=evalId(id);
       return el("tr",{}, el("td",{}, el("button",{class:"link",onclick:()=>openShift(id)}, prettyDate(d.date)+" "+d.period)), el("td",{text:d.cashierName||""}),
-        el("td",{text:STATUS_LABEL[d.status||"open"]}), el("td",{class:"n",text:resultText(r,d)}),
-        el("td",{}, reds?el("span",{class:"pill bad",text:reds+" red"}):null," ", amb?el("span",{class:"pill warn",text:amb+" amber"}):null)); }))));
+        el("td",{text:STATUS_LABEL[d.status||"open"]}), el("td",{class:"n",text:resultText(r,d)}), el("td",{}, pills(r))); }))));
+}
+/** Latest closing gauge reading per tank, at or before the end of the chosen fuel day. */
+function latestCloses(upTo){
+  const ids = Object.keys(st.shifts).filter(id=>id<=shiftId(upTo,"night")).sort().reverse();
+  const out={}, when={};
+  for (const t of Object.keys(st.settings.tanks)) for (const id of ids){ const v=st.shifts[id]?.tanks?.close?.[t]; if (typeof v==="number"){ out[t]=v; when[t]=id; break; } }
+  return {out, when};
+}
+function renderTanks(){
+  const S=st.settings, {out, when} = latestCloses(st.day);
+  const any = Object.keys(out).length;
+  const ids=[...new Set(Object.values(when))].sort(); const asOf=ids[ids.length-1];
+  $("tankAsOf").textContent = asOf ? "Closing gauge, "+prettyDate(asOf.split("_")[0])+" "+asOf.split("_")[1] : "";
+  if (!any){ $("tankLevels").replaceChildren(el("div",{class:"empty small",text:"Shows once a shift has closing gauge readings."})); $("orderRoom").replaceChildren(); return; }
+  $("tankLevels").replaceChildren(el("table",{}, el("thead",{},el("tr",{},["Tank","Grade","TC volume","Capacity","Level"].map((h,i)=>el("th",{class:i>1?"n":"",text:h})))),
+    el("tbody",{}, Object.keys(S.tanks).map(t=>{ const v=out[t], cap=S.tanks[t].capacity*100, pct=v==null?null:v/cap*100, c=pct==null?"":tankLevelClass(pct);
+      return el("tr",{}, el("td",{text:"Tank "+t}), el("td",{text:GN[S.tanks[t].grade]}), el("td",{class:"n",text:fmtL(v)}), el("td",{class:"n",text:fmtL(cap)}),
+        el("td",{class:"n "+c}, pct==null?"":[el("span",{class:"lvl "+c},el("i",{style:`width:${Math.min(100,Math.max(0,pct)).toFixed(0)}%`}))," ",pct.toFixed(0)+"%"])); }))));
+  // Forecast: average daily POS litres over the last 7 complete fuel days, times the lead time.
+  const fc={}, series=fuelSeries(addDays(st.day,-6), st.day).filter(x=>x.fd);
+  for (const g of GRADES){ const xs=series.map(x=>x.fd.grades.find(y=>y.grade===g)?.pos).filter(v=>typeof v==="number"); if(xs.length) fc[g]=Math.round(xs.reduce((a,b)=>a+b,0)/xs.length*(Number(S.orderLeadDays)||0)); }
+  const rows = E.orderRoom(S, out, fc);
+  $("orderRoom").replaceChildren(rows.length? el("table",{}, el("thead",{},el("tr",{},["Order check","Now","Safe fill ("+(S.safeFillPct??90)+"%)","Sales until arrival","Most you can order"].map((h,i)=>el("th",{class:i?"n":"",text:h})))),
+    el("tbody",{}, rows.map(r=>el("tr",{}, el("td",{text:GN[r.grade]+(r.tanks.length>1?" (T"+r.tanks.join("+T")+")":"")}), el("td",{class:"n",text:fmtL(r.current)+" · "+r.pctFull.toFixed(0)+"%"}),
+      el("td",{class:"n",text:fmtL(r.safeLevel)}), el("td",{class:"n",text:fc[r.grade]!=null?fmtL(r.forecast):"no sales data"}), el("td",{class:"n",text:fmtL(r.room)}))))) : "");
 }
 function latestDay(){ const ids=Object.keys(st.shifts).sort(); return ids.length? st.shifts[ids[ids.length-1]].date : null; }
-function brief(date, day, night, fd){
-  const parts = [`Perth Road, ${prettyDate(date)}.`];
-  const res = (d,label)=>{ if(!d) return `${label}: not entered`; const r=evalDoc(normalize(d)); return `${label}: ${d.pos?.sales==null?"not reconciled":r.cash.label.toLowerCase()}`; };
+function roundL(cl){ const l=cl/100; const a=Math.abs(l); return (l>0?"+":l<0?"−":"")+(a>=10?String(Math.round(a)).replace(/\B(?=(\d{3})+(?!\d))/g,","):a.toFixed(1))+" L"; }
+function brief(date, day, night, fd, fuelAlerts){
+  const parts = [`Perth Road, ${shortDate(date)}.`];
+  const res = (d,label)=>{ if(!d) return `${label} not entered`; const r=evalId(shiftId(d.date,d.period)); return `${label} ${d.pos?.sales==null||!r?"not reconciled":lc1(r.cash.label)}`; };
   parts.push("Cash: "+res(day,"day")+", "+res(night,"night")+".");
-  if (fd){ const f = fd.grades.filter(g=>g.tank).map(g=>`${GN[g.grade]} ${g.tank.variance>0?"+":""}${fmtL(g.tank.variance)}`); if(f.length) parts.push("Fuel 24 h: "+f.join(", ")+".");
-    const del = fd.grades.reduce((a,g)=>a+(g.tank?g.tank.delivered:0),0); if(del) parts.push(`Delivered: ${fmtL(del)}.`); }
-  const reds = []; for (const [d,lab] of [[day,"Day"],[night,"Night"]]) if(d){ const r=evalDoc(normalize(d)); if(r) r.alerts.filter(a=>a.level==="red").forEach(a=>reds.push(`${lab}: ${a.text}`)); }
-  if (fd) fd.alerts.filter(a=>a.level==="red").forEach(a=>reds.push(a.text));
-  parts.push(reds.length? "\nTo check:\n- "+reds.join("\n- ") : "\nNothing red.");
+  if (fd){
+    const order = {bad:0,warn:1,good:2,"":3};
+    const gs = fd.grades.filter(g=>g.tank).map(g=>({g, lv:gradeVarLevel(g.grade,g.tank)})).sort((a,b)=>order[a.lv]-order[b.lv]||0);
+    if (gs.length) parts.push(gs.map(({g,lv})=>`${g.grade==="D50"?"Diesel":GN[g.grade]} ${roundL(g.tank.variance)}${lv==="bad"||lv==="warn"?` (${Math.abs(g.tank.pctOfSales).toFixed(1)}%) ${lv==="bad"?"red":"amber"}`:""}`).join(", ")+".");
+  }
+  const docs=[day,night].filter(Boolean).map(normalize);
+  const received = docs.reduce((a,d)=>a+tot(d.deliveries,"truck"),0), returned = docs.reduce((a,d)=>a+tot(d.deliveryNotes,"returned"),0);
+  if (received||returned) parts.push(`Delivery: ${fmtL(received).replace(".00 L"," L")} received${returned?", "+fmtL(returned).replace(".00 L"," L")+" returned":""}.`);
+  if (docs.length) parts.push(`New unpaids: ${fmtR(docs.reduce((a,d)=>a+tot(d.unpaids),0))}; unpaids collected: ${fmtR(docs.reduce((a,d)=>a+tot(d.unpaidPaid),0))}.`);
+  const items = [];
+  for (const [d,lab] of [[day,"Day"],[night,"Night"]]) if(d){ const r=evalId(shiftId(d.date,d.period)); if(r) r.alerts.filter(a=>a.level!=="info"&&!a.text.startsWith("Cash-up:")&&!(fd&&/: pumps dispensed | tanks this shift: /.test(a.text))).forEach(a=>items.push(`${a.level==="red"?"Red":"Amber"} · ${lab}: ${a.text}`)); }
+  for (const a of (fuelAlerts||[])) if (a.level!=="info") items.push(`${a.level==="red"?"Red":"Amber"} · Fuel day: ${a.text}`);
+  items.sort((a,b)=>(a.startsWith("Red")?0:1)-(b.startsWith("Red")?0:1));
+  parts.push(items.length? `\n${items.length} item${items.length>1?"s":""} to check:\n- `+items.join("\n- ") : "\nNothing to check.");
   return parts.join(" ");
 }
 $("dayPick").addEventListener("change",(e)=>{ if(e.target.value){ st.day=e.target.value; st.dayChosen=true; renderToday(); }});
 $("newDay").addEventListener("click",()=>startShift(st.day||todaySAST(),"day"));
-function nextOpenDay(){ return st.day||todaySAST(); }
 $("newNight").addEventListener("click",()=>startShift(st.day||todaySAST(),"night"));
-$("copyBrief").addEventListener("click",async (ev)=>{ const t=$("brief").textContent; try{ await navigator.clipboard.writeText(t); ev.target.textContent="Copied"; setTimeout(()=>ev.target.textContent="Copy",1500);}catch(e){ const r=document.createRange(); r.selectNodeContents($("brief")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); ev.target.textContent="Press Ctrl+C"; } });
+async function copyText(text, btn, label){ try{ await navigator.clipboard.writeText(text); btn.textContent="Copied"; }catch(e){ btn.textContent="Copy blocked: select the text"; } setTimeout(()=>btn.textContent=label,1600); }
+$("copyBrief").addEventListener("click",(ev)=>copyText($("brief").textContent, ev.target, "Copy"));
 
 async function startShift(date, period){
   const id = shiftId(date,period);
   if (st.shifts[id]) return openShift(id);
-  if (!st.db) return;
+  if (!canStart()) return;
   const d = emptyShift(date, period);
   d.events = [{action:"Started", by:st.me||null, at:new Date().toISOString(), note:""}];
+  d.savedAt = new Date().toISOString();
   try { await st.db.doc("shifts/"+id).set(d); st.shifts[id]=d; openShift(id); } catch(e){ handleWriteError(e); }
 }
-function openShift(id){ if (st.dirty) flush(); st.curId=id; st.doc = normalize(st.shifts[id]); buildForm(); showTab("shift"); }
+function lastNote(d, action){ for (let i=(d.events||[]).length-1;i>=0;i--) if (d.events[i].action===action) return d.events[i].note||""; return ""; }
+function openShift(id){ if (st.dirty) flush(); st.curId=id; st.doc = normalize(st.shifts[id]); st.auditBase=clone(st.doc); st.auditEvt=null;
+  st.correcting=false; st.corrReason = st.doc.status==="open" && st.doc.submittedOnce ? lastNote(st.doc,"Sent back") : ""; st.baseSavedAt=st.doc.savedAt||null;
+  hideAsk(); buildForm(); showTab("shift"); }
 
 /* ---------- Shift form ---------- */
 function renderShift(){ const has=!!st.doc; $("shiftEmpty").hidden=has; $("shiftWrap").hidden=!has; }
-const locked = () => st.readOnly || (st.doc && st.doc.status!=="open");
 function moneyInput(id, get, set, opts={}){
-  const i = el("input",{id, class:"n", inputmode:"decimal", autocomplete:"off", placeholder:opts.ph||"0.00", "aria-label":opts.label||null});
+  const i = el("input",{id, class:"n", inputmode:opts.int?"numeric":"decimal", autocomplete:"off", placeholder:opts.ph||(opts.int?"":"0.00"), "aria-label":opts.label||null});
   const v = get(); i.value = v==null? "" : (opts.int? String(v) : fix2(v));
   i.addEventListener("input",()=>{ const t=i.value.trim();
     if(t===""){ i.classList.remove("bad"); set(null); changed(); return; }
@@ -333,78 +530,105 @@ function moneyInput(id, get, set, opts={}){
     catch(e){ i.classList.add("bad"); } });
   return i;
 }
-function textInput(id, get, set, opts={}){ const i=el("input",{id,type:"text",autocomplete:"off",placeholder:opts.ph||"","aria-label":opts.label||null}); i.value=get()||""; i.addEventListener("input",()=>{ set(i.value); changed(); }); return i; }
+function textInput(id, get, set, opts={}){ const i=el("input",{id,type:"text",autocomplete:"off",placeholder:opts.ph||"","aria-label":opts.label||null,list:opts.list||null,maxlength:opts.max||null,inputmode:opts.mode||null});
+  i.value=get()||""; i.addEventListener("input",()=>{ if (opts.pattern && i.value && !opts.pattern.test(i.value)){ i.classList.add("bad"); return; } i.classList.remove("bad"); set(i.value); (opts.onChange||changed)(); }); return i; }
+function selectInput(id, options, get, set, label, onChange){ const s=el("select",{id,"aria-label":label||null}, options.map(([v,l])=>el("option",{value:v,text:l}))); s.value=get()??options[0][0]; s.addEventListener("change",()=>{ set(s.value); (onChange||changed)(); }); return s; }
+const noop = () => {};
 function field(label, input){ return el("label",{class:"f",for:input.id}, label, input); }
-function sec(id, title, sumText, ...body){ const d = el("details",{class:"sec",id:"sec-"+id}, el("summary",{}, el("h3",{text:title}), el("span",{class:"sum",id:"sum-"+id,text:sumText||""})), el("div",{class:"body"}, ...body));
+function sec(id, title, ...body){ const d = el("details",{class:"sec",id:"sec-"+id,"data-sec":id}, el("summary",{}, el("h3",{text:title}), el("span",{class:"sum",id:"sum-"+id})), el("div",{class:"body"}, ...body));
   try{ const o=JSON.parse(localStorage.getItem("sc.open")||"{}"); if(o[id]) d.open=true; }catch(e){}
   d.addEventListener("toggle",()=>{ try{ const o=JSON.parse(localStorage.getItem("sc.open")||"{}"); o[id]=d.open; localStorage.setItem("sc.open",JSON.stringify(o)); }catch(e){} });
   return d; }
-function lineTable(key, cols, mk){
-  const arr = st.doc[key];
+function lineTable(key, cols, mk, secId){
+  const arr = st.doc[key], ro = !canEditSection(secId);
   const tb = el("tbody",{});
   arr.forEach((row,i)=>{ tb.append(el("tr",{}, cols.map(c=>el("td",{class:c.n?"n":""}, c.render(row,i,key))),
-    el("td",{}, el("button",{class:"x","aria-label":"Remove line "+(i+1),onclick:()=>{ if(locked()) return; arr.splice(i,1); changed(); rebuild(key); }, disabled:locked()},"×")))); });
-  const t = el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{}, cols.map(c=>el("th",{class:c.n?"n":"",text:c.h})), el("th",{}))), tb));
-  const add = el("button",{class:"btn small",onclick:()=>{ if(locked()) return; arr.push(mk()); changed(); rebuild(key, true); }, disabled:locked()},"Add line");
-  return el("div",{id:"lt-"+key,class:"stack",style:"gap:6px"}, arr.length?t:el("div",{class:"small muted",text:"No lines yet."}), el("div",{},add));
+    el("td",{}, el("button",{class:"x","aria-label":"Remove line "+(i+1),onclick:()=>{ if(!canEditSection(secId)) return; arr.splice(i,1); changed(); rebuild(key); }, disabled:ro},"×")))); });
+  const t = el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{}, cols.map(c=>el("th",{class:c.n?"n":"",text:c.h})), el("th",{}))), tb,
+    arr.length>1 && cols.some(c=>c.total)? el("tfoot",{}, el("tr",{}, cols.map((c,i)=>el("td",{class:c.n?"n num":""}, c.total? (c.litres?fmtL:fmtR)(tot(arr,c.prop)) : i===0?el("strong",{text:"Total"}):"")), el("td",{}))) : null));
+  const add = el("button",{class:"btn small",onclick:()=>{ if(!canEditSection(secId)) return; arr.push(mk()); changed(); rebuild(key, true); }, disabled:ro},"Add line");
+  return el("div",{id:"lt-"+key,class:"stack","data-sec":secId,style:"gap:6px"}, arr.length?t:el("div",{class:"small muted",text:"No lines yet."}), el("div",{},add));
 }
-function rebuild(key, focusLast){ const old=$("lt-"+key); if(!old) return; const n = LT[key](); old.replaceWith(n); if(focusLast){ const ins=n.querySelectorAll("tbody tr:last-child input, tbody tr:last-child select"); if(ins[0]) ins[0].focus(); } }
-const mcol = (h, prop, extra={}) => ({h, n:true, render:(row,i,key)=>moneyInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ...extra})});
-const tcol = (h, prop, ph) => ({h, render:(row,i,key)=>textInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ph})});
-const scol = (h, prop, options) => ({h, render:(row,i,key)=>{ const s=el("select",{id:`${key}-${i}-${prop}`,"aria-label":h}, options.map(([v,l])=>el("option",{value:v,text:l}))); s.value=row[prop]||options[0][0]; if(!row[prop]) row[prop]=options[0][0]; s.addEventListener("change",()=>{ row[prop]=s.value; changed(); }); return s; }});
-const GRADE_OPTS = [["",""],["D50","D50"],["ULP95","95"],["ULP93","93"]];
+function rebuild(key, focusLast){ const old=$("lt-"+key); if(!old) return; const n = LT[key](); old.replaceWith(n); applyLock(); if(focusLast){ const ins=n.querySelectorAll("tbody tr:last-child input, tbody tr:last-child select"); if(ins[0]) ins[0].focus(); } }
+const mcol = (h, prop, extra={}) => ({h, n:true, prop, total:!!extra.total, litres:!!extra.litres, render:(row,i,key)=>moneyInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ...extra})});
+const tcol = (h, prop, ph, extra={}) => ({h, render:(row,i,key)=>textInput(`${key}-${i}-${prop}`, ()=>row[prop], v=>{row[prop]=v;}, {label:h, ph, ...extra})});
+const scol = (h, prop, options) => ({h, render:(row,i,key)=>{ if(!row[prop]) row[prop]=options()[0][0]; return selectInput(`${key}-${i}-${prop}`, options(), ()=>row[prop], v=>{row[prop]=v;}, h); }});
+const GRADE_OPTS = () => [["",""],["D50","D50"],["ULP95","95"],["ULP93","93"]];
+const GRADE_REQ = () => [["D50","D50"],["ULP95","95"],["ULP93","93"]];
+const TANK_OPTS = () => Object.keys(st.settings.tanks).map(t=>[t,"T"+t+" "+GN[st.settings.tanks[t].grade]]);
 const LT = {
-  drops: ()=>lineTable("drops",[mcol("Drop (POS)","amt"), mcol("Deposita slip","slip")],()=>({amt:null,slip:null})),
-  batches: ()=>lineTable("batches",[tcol("Batch no.","ref","862"), mcol("Amount","amt")],()=>({ref:"",amt:null})),
-  vouchers: ()=>lineTable("vouchers",[tcol("Batch no.","ref"), mcol("Amount","amt")],()=>({ref:"",amt:null})),
-  totalCard: ()=>lineTable("totalCard",[tcol("TSN","ref"), scol("Grade","grade",[["D50","D50"],["ULP95","95"],["ULP93","93"]]), mcol("Litres","litres"), mcol("POS amount","amt"), mcol("Card receipt","cardAmt")],()=>({ref:"",grade:"D50",litres:null,amt:null,cardAmt:null})),
-  unpaids: ()=>lineTable("unpaids",[tcol("Who","who","City to City"), scol("Type","kind",[["customer","Customer"],["account","Account"],["staff-overfill","Staff overfill"]]), mcol("Amount","amt"), tcol("Reg / reason","note")],()=>({who:"",kind:"customer",amt:null,note:""})),
-  unpaidPaid: ()=>lineTable("unpaidPaid",[tcol("Who","who"), mcol("Amount","amt")],()=>({who:"",amt:null})),
-  payouts: ()=>lineTable("payouts",[scol("Type","type",[["customer","Customer rebate"],["taxi","Taxi rebate"],["bowser","Bowser rebate"],["expense","Expense"]]), tcol("Customer / item","who"), scol("Grade","grade",GRADE_OPTS), mcol("Litres","litres"), mcol("Amount","amt")],()=>({type:"customer",who:"",grade:"",litres:null,amt:null})),
-  deliveries: ()=>lineTable("deliveries",[scol("Tank","tank",Object.keys(st.settings.tanks).map(t=>[t,"T"+t+" "+GN[st.settings.tanks[t].grade]])), mcol("Truck meter 20°C (L)","truck"), mcol("Gauge TC increase (L)","gauge")],()=>({tank:"1",truck:null,gauge:null})),
+  drops: ()=>lineTable("drops",[tcol("Seq. no.","seq","1",{mode:"numeric"}), mcol("Drop (POS)","amt",{total:true}), mcol("Deposita slip","slip")],()=>({seq:"",amt:null,slip:null}),"drops"),
+  batches: ()=>lineTable("batches",[tcol("Batch no.","ref","862"), tcol("Terminal","terminal"), mcol("Amount","amt",{total:true})],()=>({ref:"",terminal:"",amt:null}),"batches"),
+  vouchers: ()=>lineTable("vouchers",[tcol("Batch no.","ref"), mcol("Amount","amt",{total:true})],()=>({ref:"",amt:null}),"vouchers"),
+  totalCard: ()=>lineTable("totalCard",[tcol("TSN","ref"), tcol("Card last 4","card4","1234",{max:4,pattern:/^\d{0,4}$/,mode:"numeric"}), scol("Grade","grade",GRADE_REQ), mcol("Litres","litres",{litres:true}), mcol("POS amount","amt",{total:true}), mcol("Card receipt","cardAmt")],()=>({ref:"",card4:"",grade:"D50",litres:null,amt:null,cardAmt:null}),"totalCard"),
+  accounts: ()=>lineTable("accounts",[tcol("Account","account","City to City",{list:"dl-accounts"}), tcol("Reg no.","reg"), mcol("Km","km",{int:true}), mcol("Litres","litres",{litres:true}), mcol("Amount","amt",{total:true})],()=>({account:"",reg:"",km:null,litres:null,amt:null}),"local"),
+  unpaids: ()=>lineTable("unpaids",[tcol("Who","who","City to City",{list:"dl-who"}), scol("Type","kind",()=>[["customer","Customer"],["account","Account"],["staff-overfill","Staff overfill"]]), mcol("Litres","litres",{litres:true}), mcol("Amount","amt",{total:true}), tcol("Reg / km / reason","note")],()=>({who:"",kind:"customer",litres:null,amt:null,note:""}),"unpaids"),
+  unpaidPaid: ()=>lineTable("unpaidPaid",[tcol("Who","who","",{list:"dl-open"}), mcol("Amount","amt",{total:true})],()=>({who:"",amt:null}),"unpaids"),
+  payouts: ()=>lineTable("payouts",[scol("Type","type",()=>[["customer","Customer rebate"],["taxi","Taxi rebate"],["bowser","Bowser rebate"],["expense","Expense"]]), tcol("Customer / item","who","",{list:"dl-rebate"}), scol("Grade","grade",GRADE_OPTS), mcol("Litres","litres",{litres:true}), mcol("Amount","amt",{total:true})],()=>({type:"customer",who:"",grade:"",litres:null,amt:null}),"payouts"),
+  deliveries: ()=>lineTable("deliveries",[scol("Tank","tank",TANK_OPTS), mcol("Truck meter 20°C (L)","truck",{total:true,litres:true}), mcol("Gauge TC increase (L)","gauge",{litres:true})],()=>({tank:Object.keys(st.settings.tanks)[0]||"1",truck:null,gauge:null}),"deliveries"),
+  deliveryNotes: ()=>lineTable("deliveryNotes",[tcol("Delivery note / BOL","ref","3017884981"), scol("Grade","grade",GRADE_REQ), mcol("Loaded 20°C (L)","bol",{litres:true}), mcol("Returned (L)","returned",{litres:true})],()=>({ref:"",grade:"D50",bol:null,returned:null}),"deliveries"),
 };
+function datalists(){
+  const S=st.settings, uniq=(xs)=>[...new Set(xs.map(x=>String(x||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const rateNames = Object.keys(S.rates||{}).map(k=>k.split("|")[0]);
+  const openNames = unpaidLedger().customers.map(c=>c.who);
+  const dl = (id, xs) => el("datalist",{id}, uniq(xs).map(v=>el("option",{value:v})));
+  return el("div",{hidden:true}, dl("dl-accounts",S.accounts), dl("dl-rebate",[...S.rebateCustomers, ...rateNames]), dl("dl-open",openNames),
+    dl("dl-who",[...S.accounts, ...S.rebateCustomers, ...S.staff.map(s=>s.name), ...openNames]));
+}
 function buildForm(){
   const d = st.doc, S = st.settings;
   $("shiftEmpty").hidden=true; $("shiftWrap").hidden=false;
   $("shiftTitle").textContent = `${prettyDate(d.date)} · ${d.period==="day"?"Day 06:00–18:00":"Night 18:00–06:00"}`;
-  const staffOpts = [["",""], ...S.staff.map(s=>[s.name,s.name])]; if (d.cashierName && !S.staff.some(s=>s.name===d.cashierName)) staffOpts.push([d.cashierName,d.cashierName]);
-  const cashierSel = el("select",{id:"f-cashier"}, staffOpts.map(([v,l])=>el("option",{value:v,text:l||"Choose…"}))); cashierSel.value=d.cashierName||"";
-  cashierSel.addEventListener("change",()=>{ d.cashierName=cashierSel.value; changed(); });
+  const staffOpts = [["","Choose…"], ...S.staff.map(s=>[s.name,s.name])]; if (d.cashierName && !S.staff.some(s=>s.name===d.cashierName)) staffOpts.push([d.cashierName,d.cashierName]);
+  const cashierSel = selectInput("f-cashier", staffOpts, ()=>d.cashierName||"", v=>{ d.cashierName=v; }, "Cashier");
   const pumpRows = Object.keys(S.pumps).map(p=>{ const r = d.pumps[p] = d.pumps[p]||{open:null,close:null};
-    const lit = el("td",{class:"n",id:"pl-"+p});
     return el("tr",{}, el("td",{class:"pumpcell"}, "Pump "+p, el("small",{text:GN[S.pumps[p]]})),
       el("td",{}, moneyInput("pump-"+p+"-open",()=>r.open,v=>{r.open=v;},{int:true,ph:"opening",label:"Pump "+p+" opening"})),
-      el("td",{}, moneyInput("pump-"+p+"-close",()=>r.close,v=>{r.close=v;},{int:true,ph:"closing",label:"Pump "+p+" closing"})), lit); });
-  const tankRows = Object.keys(S.tanks).map(t=>el("tr",{}, el("td",{class:"pumpcell"}, "Tank "+t, el("small",{text:GN[S.tanks[t].grade]})),
+      el("td",{}, moneyInput("pump-"+p+"-close",()=>r.close,v=>{r.close=v;},{int:true,ph:"closing",label:"Pump "+p+" closing"})), el("td",{class:"n num",id:"pl-"+p})); });
+  const mm = (id, get, set, label) => moneyInput(id, get, set, {int:true, ph:"mm", label});
+  const tankRows = Object.keys(S.tanks).map(t=>{ d.tanks.dip[t]=d.tanks.dip[t]||{}; const dp=d.tanks.dip[t];
+    return el("tr",{}, el("td",{class:"pumpcell"}, "Tank "+t, el("small",{text:GN[S.tanks[t].grade]})),
     el("td",{}, moneyInput("tank-"+t+"-open",()=>d.tanks.open[t],v=>{d.tanks.open[t]=v;},{label:"Tank "+t+" opening TC"})),
-    el("td",{}, moneyInput("tank-"+t+"-close",()=>d.tanks.close[t],v=>{d.tanks.close[t]=v;},{label:"Tank "+t+" closing TC"}))));
+    el("td",{}, moneyInput("tank-"+t+"-close",()=>d.tanks.close[t],v=>{d.tanks.close[t]=v;},{label:"Tank "+t+" closing TC"})),
+    el("td",{}, mm("tank-"+t+"-gmm",()=>dp.gaugeMm,v=>{dp.gaugeMm=v;},"Tank "+t+" gauge height mm")),
+    el("td",{}, mm("tank-"+t+"-smm",()=>dp.stickMm,v=>{dp.stickMm=v;},"Tank "+t+" stick dip mm")),
+    el("td",{}, mm("tank-"+t+"-water",()=>d.tanks.water[t],v=>{d.tanks.water[t]=v;},"Tank "+t+" water mm"))); });
   const P = d.pos;
   const posF = (lab, k, int) => field(lab, moneyInput("pos-"+k,()=>P[k],v=>{P[k]=v;},{int}));
+  const sheetIn = moneyInput("f-localSheet",()=>d.localSheet,v=>{d.localSheet=v;});
   const form = [
-    sec("details","Shift details", "", el("div",{class:"fields"},
+    datalists(),
+    sec("details","Shift details", el("div",{class:"fields"},
       field("Cashier who worked the shift", cashierSel),
-      field("POS shift no.", textInput("f-posShift",()=>d.posShiftNo,v=>{d.posShiftNo=v;},{ph:"482"})))),
-    sec("pumps","Pump readings", "", el("div",{class:"small muted",text:"Openings carry over from the previous shift's closings. Readings in whole litres."}),
+      field("POS shift no.", textInput("f-posShift",()=>d.posShiftNo,v=>{d.posShiftNo=v.trim();},{ph:"482",mode:"numeric"})))),
+    sec("pumps","Pump readings", el("div",{class:"sechint",text:"Openings carry over from the previous shift's closings. Readings in whole litres."}),
       el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Pump"}),el("th",{text:"Opening"}),el("th",{text:"Closing"}),el("th",{class:"n",text:"Litres"}))), el("tbody",{},pumpRows)))),
-    sec("pos","POS shift report", "", el("div",{class:"small muted",text:"Copy these from the Cashier Shift End Report."}),
+    sec("drops","Safe drops and coins", LT.drops(), el("div",{class:"fields"}, field("Coins", moneyInput("f-coins",()=>d.coins,v=>{d.coins=v;})))),
+    sec("batches","Card batches", LT.batches()),
+    sec("vouchers","Vouchers (fleet / Standard Bank)", LT.vouchers()),
+    sec("totalCard","Total Card", el("div",{class:"sechint",text:"Enter the card receipt amount too: the app checks the customer's rebate against the agreed rate. Card numbers: last 4 digits only."}), LT.totalCard()),
+    sec("local","Local accounts", el("div",{class:"sechint",text:"Enter each account sale. The sheet total is added up from the lines; type it only if you have no lines."}), LT.accounts(),
+      el("div",{class:"fields"}, field("Account sheets total", sheetIn))),
+    sec("unpaids","Unpaids", LT.unpaids(), el("h3",{text:"Unpaid paid (collected this shift)"}), LT.unpaidPaid()),
+    sec("payouts","Pay outs and rebates", LT.payouts()),
+    sec("tanks","Tank gauge and dips", el("div",{class:"sechint",text:"From the gauge slip printed at shift change: TC volume in litres. At close, also the gauge height, the manual stick dip and any water, in mm."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},["Tank","Opening TC","Closing TC","Gauge mm","Stick mm","Water mm"].map(h=>el("th",{text:h})))), el("tbody",{},tankRows)))),
+    sec("deliveries","Deliveries", el("div",{class:"sechint",text:"One line per tank drop, then one line per grade from the delivery note. Fuel loaded but not delivered must match what is recorded as returned."}),
+      LT.deliveries(), el("h3",{text:"Delivery note (BOL)"}), LT.deliveryNotes()),
+    sec("pos","POS shift report", el("div",{class:"sechint",text:"Copy these from the Cashier Shift End Report. Entered by the cash-up controller."}),
       el("div",{class:"fields"}, posF("Sales total (wet stock)","sales"), posF("Cash","cash"), posF("All card tenders (fuel + bank + fleet + Total Card)","cards"),
         posF("Local accounts","localAccounts"), posF("Safe drops total","safeDrops"), posF("Pay out total","payouts"), posF("Pay out count","payoutCount",true),
-        field("POS cashier no.", textInput("pos-cashierNo",()=>P.cashierNo,v=>{P.cashierNo=v.trim();},{ph:"2173"})),
+        posF("Automatic discounts","discountsAuto"), posF("Manual discounts","discountsManual"),
+        field("POS cashier no.", textInput("pos-cashierNo",()=>P.cashierNo,v=>{P.cashierNo=v.trim();},{ph:"2173",mode:"numeric"})),
         field("POS cashier name", textInput("pos-cashierName",()=>P.cashierName,v=>{P.cashierName=v;},{ph:"as printed"}))),
-      el("div",{class:"small muted",text:"Litres sold by grade (Non-Mandate Sales on page 4)"}),
+      el("div",{class:"sechint",text:"Litres sold by grade (Non-Mandate Sales on page 4)"}),
       el("div",{class:"fields"}, GRADES.map(g=>field(GN[g]+" litres", moneyInput("pos-l-"+g,()=>P.litres[g],v=>{P.litres[g]=v;}))))),
-    sec("drops","Safe drops and coins","", LT.drops(), el("div",{class:"fields"}, field("Coins", moneyInput("f-coins",()=>d.coins,v=>{d.coins=v;})))),
-    sec("batches","Card batches","", LT.batches()),
-    sec("vouchers","Vouchers (fleet / Standard Bank)","", LT.vouchers()),
-    sec("totalCard","Total Card","", el("div",{class:"small muted",text:"Enter the card receipt amount too: the app checks the customer's rebate against the agreed rate."}), LT.totalCard()),
-    sec("local","Local accounts","", el("div",{class:"fields"}, field("Account sheets total", moneyInput("f-localSheet",()=>d.localSheet,v=>{d.localSheet=v;})))),
-    sec("unpaids","Unpaids","", LT.unpaids(), el("h3",{text:"Unpaid paid (collected this shift)"}), LT.unpaidPaid()),
-    sec("payouts","Pay outs and rebates","", LT.payouts()),
-    sec("tanks","Tank gauge (TC volume)","", el("div",{class:"small muted",text:"From the gauge slip printed at shift change. TC volume in litres."}),
-      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Tank"}),el("th",{text:"Opening TC"}),el("th",{text:"Closing TC"}))), el("tbody",{},tankRows)))),
-    sec("deliveries","Deliveries","", LT.deliveries()),
-    st.assets? sec("photos","Photos of slips","", photoBlock()) : null,
-    sec("history","History","", historyBlock()),
+    sec("paper","Paper Page 7 (parallel run)", el("div",{class:"sechint",text:"While paper and app run side by side, enter the result written on Page 7. The app flags any difference in amount or direction."}),
+      el("div",{class:"fields"}, field("Written short/over", moneyInput("f-stated",()=>d.stated.amount,v=>{d.stated.amount=v;})),
+        field("Direction", selectInput("f-statedDir",[["","not written"],["short","Short"],["over","Over"]],()=>d.stated.direction||"",v=>{d.stated.direction=v;},"Direction")))),
+    st.assets? sec("photos","Photos of slips", photoBlock()) : null,
+    sec("history","History", historyBlock()),
   ].filter(Boolean);
   $("form").replaceChildren(...form);
   renderStatus(); applyLock(); refresh();
@@ -413,13 +637,15 @@ function photoBlock(){
   const d = st.doc;
   const inp = el("input",{type:"file",id:"photoIn",accept:"image/*,application/pdf",multiple:true});
   const thumbs = el("div",{class:"thumbs",id:"thumbs"}, d.photos.map(p=>el("a",{href:"/_blob/"+p.id,target:"_blank",rel:"noopener"}, p.type==="application/pdf"?el("span",{class:"pill",text:"PDF"}):el("img",{src:"/_blob/"+p.id,alt:p.label||"Slip photo"}))));
-  inp.addEventListener("change", async ()=>{ for (const f of inp.files){ try{ setSave("Uploading…"); const r = await st.assets.upload(f, f.type?undefined:{type:"image/jpeg"}); d.photos.push({id:r.id,label:f.name,type:r.contentType}); changed(); } catch(e){ banner("Photo not uploaded: "+(e.code==="too_large"?"the file is over 20 MB.":e.code==="unsupported_type"?"use a JPG, PNG or PDF.":"try again.")); } }
-    inp.value=""; const nb=photoBlock(); $("photoBox").replaceWith(nb); });
-  return el("div",{class:"stack",id:"photoBox"}, el("label",{class:"f",for:"photoIn"},"Add photos of drop slips, batch slips, gauge slips and delivery notes", inp), thumbs);
+  inp.addEventListener("change", async ()=>{ for (const f of inp.files){ try{ setSave("Uploading…"); const r = await st.assets.upload(f); d.photos.push({id:r.id,label:f.name,type:r.contentType,by:st.me||null,at:new Date().toISOString()}); changed(); } catch(e){ banner("Photo not uploaded: "+(e&&e.code==="too_large"?"the file is over 20 MB.":e&&e.code==="unsupported_type"?"use a JPG, PNG or PDF.":"try again.")); } }
+    inp.value=""; const nb=photoBlock(); $("photoBox").replaceWith(nb); applyLock(); });
+  return el("div",{class:"stack",id:"photoBox","data-sec":"photos"}, el("label",{class:"f",for:"photoIn"},"Add photos of meters, drop slips, batch slips, gauge slips and delivery notes", inp), thumbs);
 }
 function historyBlock(){
   const ev = (st.doc.events||[]).slice().reverse();
-  const box = el("div",{id:"histBox"}, ev.length? el("ul",{class:"alerts"}, ev.map(e=>el("li",{class:"info"}, el("span",{}, el("strong",{text:e.action})," · ", el("span",{class:"who","data-uid":e.by||""},"…")," · ", new Date(e.at).toLocaleString("en-ZA"), e.note?(" · "+e.note):"")))) : el("div",{class:"small muted",text:"No history yet."}));
+  const box = el("div",{id:"histBox","data-n":String((st.doc.events||[]).length)+"|"+JSON.stringify((st.doc.events||[]).at(-1)||null).length}, ev.length? el("ul",{class:"alerts"}, ev.map(e=>el("li",{class:e.action==="Sent back"?"amber":"info"}, el("div",{},
+    el("span",{}, el("strong",{text:e.action})," · ", el("span",{class:"who","data-uid":e.by||""},"…")," · ", new Date(e.at).toLocaleString("en-ZA"), e.note?(" · "+e.note):""),
+    e.changes&&e.changes.length? el("ul",{class:"changes"}, e.changes.map(c=>el("li",{text:`${pathLabel(c.f)}: ${fmtVal(c.f,c.from)} → ${fmtVal(c.f,c.to)}`}))) : null)))) : el("div",{class:"small muted",text:"No history yet."}));
   resolveNames(box);
   return box;
 }
@@ -428,40 +654,78 @@ async function resolveNames(root){
   let ps={}; if (st.user && ids.length){ try{ ps = await st.user.profiles(ids); }catch(e){} }
   for (const n of nodes) n.textContent = (n.dataset.uid && ps[n.dataset.uid]?.name) || (n.dataset.uid && n.dataset.uid===st.me ? "you" : "someone");
 }
+
+/* ---------- workflow: Open → Submitted → Reconciled → Signed off; send back one step with a note ---------- */
+function hideAsk(){ const b=$("askBox"); b.hidden=true; b.replaceChildren(); }
+function ask({title, items, label, ph, required, go, goLabel}){
+  const b=$("askBox"); const inp = label? el("input",{id:"askNote",type:"text",placeholder:ph||""}) : null;
+  b.replaceChildren(el("h3",{text:title}), items&&items.length? el("ul",{}, items.map(t=>el("li",{text:t}))) : null,
+    inp? el("label",{class:"f",for:"askNote"}, label, inp) : null,
+    el("div",{class:"row"}, el("button",{class:"btn primary",id:"askGo",onclick:async()=>{ const v=inp?inp.value.trim():""; if (required && !v){ inp.classList.add("bad"); inp.focus(); return; } hideAsk(); await go(v); }}, goLabel),
+      el("button",{class:"btn",onclick:hideAsk},"Cancel")));
+  b.hidden=false; (inp||$("askGo")).focus(); b.scrollIntoView({block:"nearest"});
+}
+async function transition(to, action, note){
+  await flush(); recordAudit();
+  const d=st.doc; if (to!=="open" || d.status!=="open") d.submittedOnce=true; d.status=to;
+  addEvent(action, note); st.correcting=false; st.corrReason = to==="open" ? (note||"") : "";
+  st.dirty=true; await flush(); st.auditBase=clone(d); buildForm();
+}
 function renderStatus(){
   const d=st.doc, i=STATUSES.indexOf(d.status);
   $("stepper").replaceChildren(...STATUSES.map((s,k)=>el("span",{class:k<i?"done":k===i?"now":"",text:STATUS_LABEL[s]})));
-  const acts=[];
-  const go = (to, label, primary) => el("button",{class:"btn"+(primary?" primary":""),disabled:st.readOnly,onclick:async()=>{ await flush(); d.status=to; addEvent(label); st.dirty=true; await flush(); buildForm(); }}, label);
-  if (d.status==="open") acts.push(go("submitted","Submit",true));
-  if (d.status==="submitted") acts.push(go("reconciled","Mark reconciled",true));
-  if (d.status==="reconciled") acts.push(go("signed","Sign off",true));
-  if (d.status!=="open") acts.push(el("button",{class:"btn",disabled:st.readOnly,onclick:()=>{ $("reopenBox").hidden=false; $("reopenReason").focus(); }},"Reopen"));
+  const acts=[], btn=(label, primary, fn)=>el("button",{class:"btn"+(primary?" primary":""),onclick:fn},label);
+  const r = evalDoc(d);
+  if (d.status==="open" && has("cashier","controller")) acts.push(btn("Submit",true,()=>{
+    const items=[...(r?r.missing.map(m=>"Still to enter: "+m):[]), ...(r?r.alerts.filter(a=>a.level==="red").map(a=>"Red: "+a.text):[])];
+    ask({title: items.length?"Submit with these open items?":"Submit this shift?", items, label: d.submittedOnce?"What was fixed (kept in the history)":null, ph:"e.g. Batch 862 corrected", required:false,
+      goLabel:"Submit", go:(note)=>transition("submitted","Submitted",note)}); }));
+  if (d.status==="submitted" && has("controller")){
+    acts.push(btn("Mark reconciled",true,()=>ask({title:"Mark this cash-up reconciled?", items: r&&d.pos.sales==null?["POS figures are not entered yet."]:(r?r.alerts.filter(a=>a.level==="red").map(a=>"Red: "+a.text):[]), goLabel:"Mark reconciled", go:()=>transition("reconciled","Reconciled","")})));
+    acts.push(st.correcting ? btn("Done correcting",false,async()=>{ await flush(); st.correcting=false; st.corrReason=""; st.auditEvt=null; buildForm(); })
+      : btn("Correct figures",false,()=>ask({title:"Correct figures on a submitted shift", label:"Reason for the correction (kept with every changed number)", ph:"e.g. Batch 862 amount entered wrongly", required:true, goLabel:"Start correcting",
+        go:(why)=>{ st.correcting=true; st.corrReason=why; st.auditEvt=null; buildForm(); }})));
+    acts.push(btn("Send back to cashier",false,()=>ask({title:"Send back to the cashier", label:"Note for the cashier", ph:"e.g. Batch 940 slip missing", required:true, goLabel:"Send back", go:(n)=>transition("open","Sent back",n)})));
+  }
+  if (d.status==="reconciled" && has("checker")){
+    acts.push(btn("Sign off",true,()=>ask({title:"Sign off this shift?", goLabel:"Sign off", go:()=>transition("signed","Signed off","")})));
+    acts.push(btn("Send back",false,()=>ask({title:"Send back to the cash-up controller", label:"What needs checking", ph:"e.g. Rebate on 11.15 L paid R8.84", required:true, goLabel:"Send back", go:(n)=>transition("submitted","Sent back",n)})));
+  }
+  if (d.status==="signed" && has()) acts.push(btn("Send back",false,()=>ask({title:"Undo the sign-off", label:"Reason (kept in the history)", ph:"e.g. Auditor query on Total Card", required:true, goLabel:"Send back", go:(n)=>transition("reconciled","Sent back",n)})));
+  if (st.downloads) acts.push(btn("Download shift pack",false,()=>downloadPack()));
   $("actions").replaceChildren(...acts);
+  const role=myRole();
+  $("modeNote").textContent = st.readOnly ? "View only." : !role ? "You have no role on this site yet, so you can only view. Ask Abdul to add you in Settings."
+    : st.correcting ? `Correcting: “${st.corrReason}”. Every change is logged with the old value.`
+    : d.status==="open" && d.submittedOnce ? `Sent back${st.corrReason?": “"+st.corrReason+"”":""}. Changes are logged with the old value.`
+    : d.status!=="open" ? "Locked except for the parts your role fills in. Changes are logged." : "";
 }
-$("reopenCancel").addEventListener("click",()=>{ $("reopenBox").hidden=true; });
-$("reopenGo").addEventListener("click",async ()=>{ const why=$("reopenReason").value.trim(); if(!why){ $("reopenReason").classList.add("bad"); return; }
-  $("reopenReason").classList.remove("bad"); st.doc.status="open"; addEvent("Reopened", why); st.dirty=true; await flush(); $("reopenBox").hidden=true; $("reopenReason").value=""; buildForm(); });
-function applyLock(){ const l=locked(); document.querySelectorAll("#form input, #form select, #form button").forEach(x=>{ if(x.closest("#sec-history")) return; x.disabled=l; }); }
-
+function applyLock(){
+  document.querySelectorAll("#form [data-sec]").forEach(sec=>{ const id=sec.dataset.sec, ok=canEditSection(id);
+    if (sec.tagName==="DETAILS") sec.classList.toggle("ro", !ok && id!=="history");
+    sec.querySelectorAll("input, select, button").forEach(x=>{ if (x.closest("[data-sec]")!==sec && x.closest("[data-sec]").dataset.sec!==id) return; x.disabled=!ok; }); });
+  const sheet=$("f-localSheet"); if (sheet && st.doc.accounts.some(a=>typeof a.amt==="number")) sheet.disabled=true;
+}
 function changed(){ refresh(); scheduleSave(); st.shifts[st.curId]=clone(st.doc); }
 function refresh(){
   const d=st.doc, S=st.settings, r=evalDoc(d);
   for (const p of Object.keys(S.pumps)){ const x=d.pumps[p], c=$("pl-"+p); if(c) c.textContent = (x&&x.open!=null&&x.close!=null)? String(x.close-x.open) : ""; }
-  const tot = (a)=>a.reduce((s,x)=>s+(x.amt||0),0);
   const set=(id,t)=>{ const e=$("sum-"+id); if(e) e.textContent=t; };
+  const sheet=$("f-localSheet"); const accLines=d.accounts.filter(a=>typeof a.amt==="number");
+  if (accLines.length){ d.localSheet = tot(accLines); if (sheet){ sheet.value=fix2(d.localSheet); sheet.disabled=true; } } else if (sheet && canEditSection("local")) sheet.disabled=false;
   set("drops", d.drops.length? fmtR(tot(d.drops)+(d.coins||0)) : ""); set("batches", d.batches.length? fmtR(tot(d.batches)):"");
   set("vouchers", d.vouchers.length? fmtR(tot(d.vouchers)):""); set("totalCard", d.totalCard.length? fmtR(tot(d.totalCard)):"");
   set("unpaids", (d.unpaids.length||d.unpaidPaid.length)? `${fmtR(tot(d.unpaids))} / paid ${fmtR(tot(d.unpaidPaid))}`:""); set("payouts", d.payouts.length? `${d.payouts.length} lines · ${fmtR(tot(d.payouts))}`:"");
   set("pos", d.pos.sales!=null? fmtR(d.pos.sales):""); set("local", d.localSheet!=null? fmtR(d.localSheet):"");
   const np = Object.values(d.pumps).filter(x=>x&&x.open!=null&&x.close!=null).length; set("pumps", `${np}/${Object.keys(S.pumps).length}`);
-  set("details", d.cashierName||""); set("deliveries", d.deliveries.length? `${d.deliveries.length} drop${d.deliveries.length>1?"s":""}`:"");
+  const nt = Object.keys(S.tanks).filter(t=>d.tanks.close[t]!=null).length; set("tanks", `${nt}/${Object.keys(S.tanks).length}`);
+  set("details", d.cashierName||""); set("deliveries", d.deliveries.length? `${d.deliveries.length} drop${d.deliveries.length>1?"s":""} · ${fmtL(tot(d.deliveries,"truck"))}`:"");
+  set("paper", d.stated.amount!=null? `${d.stated.direction||""} ${fmtR(d.stated.amount)}`.trim():""); set("photos", d.photos.length? d.photos.length+" attached":"");
   renderSide(r);
 }
 function renderMbar(r){ const d=st.doc; const lv=level(r);
   $("mbarRes").className="result "+(d.pos.sales==null||!r?"":lv); $("mbarRes").textContent = (!r||d.pos.sales==null)?"Not reconciled":r.cash.label;
-  const reds=r?r.alerts.filter(a=>a.level==="red").length:0, amb=r?r.alerts.filter(a=>a.level==="amber").length:0;
-  $("mbarPills").replaceChildren(reds?el("span",{class:"pill bad",text:reds+" red"}):"", " ", amb?el("span",{class:"pill warn",text:amb+" amber"}):""); }
+  $("mbarPills").replaceChildren(...pills(r).filter(Boolean)); }
 $("mbarGo").addEventListener("click",()=>$("side").scrollIntoView({behavior:"smooth",block:"start"}));
 function renderSide(r){
   const d=st.doc, side=$("side"); renderMbar(r);
@@ -472,75 +736,247 @@ function renderSide(r){
     el("span",{class:"tot",text:"Accounted"}), el("span",{class:"tot n num",text:fmtR(r.cash.accounted)}),
     el("span",{class:"muted",text:"POS sales"}), el("span",{class:"n num",text:fmtR(d.pos.sales)}));
   const fuel = r.fuel.grades.length? el("div",{class:"tablewrap"}, el("table",{}, el("thead",{},el("tr",{},el("th",{text:"Grade"}),el("th",{class:"n",text:"Pumps"}),el("th",{class:"n",text:"POS"}),el("th",{class:"n",text:"Diff"}))),
-    el("tbody",{}, r.fuel.grades.map(g=>el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meterLitres)}),el("td",{class:"n",text:fmtL(g.posLitres)}),el("td",{class:"n",text:g.difference==null?"":(g.difference>0?"+":"")+fmtL(g.difference)})))))) : null;
-  const tanks = r.fuel.tanks.length? el("div",{class:"small"}, r.fuel.tanks.map(t=>el("div",{class:"row",style:"justify-content:space-between"}, el("span",{text:GN[t.grade]+" tanks this shift"}), el("span",{class:"num",text:(t.variance>0?"+":"")+fmtL(t.variance)})))) : null;
+    el("tbody",{}, r.fuel.grades.map(g=>el("tr",{},el("td",{text:GN[g.grade]}),el("td",{class:"n",text:fmtL(g.meterLitres)}),el("td",{class:"n",text:fmtL(g.posLitres)}),el("td",{class:"n",text:sgnL(g.difference)})))))) : null;
+  const tanks = r.fuel.tanks.length? el("div",{class:"small"}, r.fuel.tanks.map(t=>el("div",{class:"row",style:"justify-content:space-between"}, el("span",{text:GN[t.grade]+" tanks this shift"}), el("span",{class:"num",text:sgnL(t.variance)})))) : null;
+  const order={red:0,amber:1,info:2};
   side.replaceChildren(
     el("div",{class:"panel stack"},
       el("div",{class:"row",style:"justify-content:space-between"}, el("h2",{text:"Cash-up"}), el("span",{class:"pill "+(d.pos.sales==null?"":lv),text:d.pos.sales==null?"Waiting for POS figures":({good:"All clear",warn:"Check amber items",bad:"Red items"}[lv])})),
       el("div",{class:"result "+(d.pos.sales==null?"":lv),text:d.pos.sales==null?"—":r.cash.label}), kv,
       (r.cash.cashSide!=null||r.cash.cardSide!=null)? el("div",{class:"small muted"}, r.cash.cashSide!=null?`Cash vs POS cash: ${r.cash.cashSide>0?"short ":"over "}${fmtR(Math.abs(r.cash.cashSide))}. `:"", r.cash.cardSide!=null?`Cards and unpaids vs POS cards: ${r.cash.cardSide>0?"short ":"over "}${fmtR(Math.abs(r.cash.cardSide))}.`:""):null),
     el("div",{class:"panel stack"}, el("h2",{text:"Checks"}),
-      r.alerts.length? el("ul",{class:"alerts"}, r.alerts.map(a=>el("li",{class:a.level,text:a.text}))) : el("div",{class:"small muted",text:"Nothing to check so far."}),
+      r.alerts.length? el("ul",{class:"alerts"}, r.alerts.slice().sort((a,b)=>order[a.level]-order[b.level]).map(a=>el("li",{class:a.level,text:a.text}))) : el("div",{class:"small muted",text:"Nothing to check so far."}),
       r.missing.length? el("div",{class:"small muted",text:"Still to enter: "+r.missing.join(", ")+"."}):null),
     (fuel||tanks)? el("div",{class:"panel stack"}, el("h2",{text:"Fuel this shift"}), fuel, tanks, el("div",{class:"small muted",text:"The 24-hour figures on the Today tab are the official fuel check."})) : null
   );
 }
 
+/* ---------- exports ---------- */
+const csvCell = (v) => { const s = v==null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+const toCsv = (head, rows) => [head, ...rows].map(r=>r.map(csvCell).join(",")).join("\r\n")+"\r\n";
+const toTsv = (head, rows) => [head, ...rows].map(r=>r.map(v=>v==null?"":String(v).replace(/[\t\n]/g," ")).join("\t")).join("\n");
+async function saveFile(filename, data, btn){
+  if (!st.downloads){ banner("Downloads are not available in this view. Use Copy and paste into Excel instead."); return; }
+  try { await st.downloads.save({filename, data}); }
+  catch(e){ if (e && e.code==="declined") return; banner(e&&e.code==="rate_limited"?"A download is already waiting for you to confirm.":"The file could not be saved here. Use Copy and paste into Excel instead."); }
+}
+function exportButtons(name, head, rows){
+  return el("span",{class:"row"}, st.downloads? el("button",{class:"btn small",onclick:()=>saveFile(name+".csv", toCsv(head, rows))},"Download CSV") : null,
+    el("button",{class:"btn small",onclick:(ev)=>copyText(toTsv(head, rows), ev.target, "Copy")},"Copy"));
+}
+const plainR = (c) => c==null ? "" : (c/100).toFixed(2), plainL = (c) => c==null ? "" : (c/100).toFixed(2);
+function downloadPack(){
+  const d=st.doc, r=evalDoc(d), esc=(s)=>String(s??"").replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const tbl=(title, head, rows)=> rows.length? `<h2>${esc(title)}</h2><table><tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>${rows.map(rw=>`<tr>${rw.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</table>` : "";
+  const c=r?r.cash.components:{};
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Shift pack ${esc(st.curId)}</title><style>body{font:12px/1.4 system-ui,sans-serif;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:3px 6px;text-align:left}th{background:#eee}.r{font-size:20px;font-weight:600}</style></head><body>
+<h1>TotalEnergies Perth Road · Shift pack</h1><p>${esc(prettyDate(d.date))} · ${d.period==="day"?"Day 06:00–18:00":"Night 18:00–06:00"} · POS shift ${esc(d.posShiftNo)} · Cashier ${esc(d.cashierName)} · Status: ${esc(STATUS_LABEL[d.status])}</p>
+<p class="r">${esc(r?resultText(r,d):"")}</p>
+${r?tbl("Cash-up (Page 7)",["Line","Amount"],[["POS sales",fmtR(d.pos.sales)],["Safe drops",fmtR(c.safeDrops)],["Coins",fmtR(c.coins)],["Card batches",fmtR(c.cardBatches)],["Vouchers",fmtR(c.vouchers)],["Total Card",fmtR(c.totalCard)],["Local accounts",fmtR(c.localAccounts)],["Unpaids",fmtR(c.unpaids)],["Less unpaid paid",fmtR(-c.unpaidPaid)],["Pay outs",fmtR(c.payouts)],["Accounted",fmtR(r.cash.accounted)],["Result",r.cash.label]]):""}
+${r?tbl("Checks",["Level","Check"],r.alerts.map(a=>[a.level,a.text])):""}
+${tbl("Pump readings",["Pump","Grade","Opening","Closing","Litres"],Object.keys(st.settings.pumps).map(p=>{const x=d.pumps[p]||{}; return [p,GN[st.settings.pumps[p]],x.open??"",x.close??"",x.open!=null&&x.close!=null?x.close-x.open:""];}))}
+${tbl("Safe drops",["Seq.","Drop","Deposita slip"],d.drops.map(x=>[x.seq||"",fmtR(x.amt),fmtR(x.slip)]))}
+${tbl("Card batches",["Batch","Terminal","Amount"],d.batches.map(x=>[x.ref,x.terminal||"",fmtR(x.amt)]))}
+${tbl("Vouchers",["Batch","Amount"],d.vouchers.map(x=>[x.ref,fmtR(x.amt)]))}
+${tbl("Total Card",["TSN","Card","Grade","Litres","POS","Card receipt"],d.totalCard.map(x=>[x.ref,x.card4?"…"+x.card4:"",x.grade,fmtL(x.litres),fmtR(x.amt),fmtR(x.cardAmt)]))}
+${tbl("Local account sales",["Account","Reg","Km","Litres","Amount"],d.accounts.map(x=>[x.account,x.reg||"",x.km??"",fmtL(x.litres),fmtR(x.amt)]))}
+${tbl("Unpaids",["Who","Type","Litres","Amount","Note"],d.unpaids.map(x=>[x.who,x.kind,fmtL(x.litres),fmtR(x.amt),x.note||""]))}
+${tbl("Unpaid paid",["Who","Amount"],d.unpaidPaid.map(x=>[x.who,fmtR(x.amt)]))}
+${tbl("Pay outs and rebates",["Type","Who","Grade","Litres","Amount"],d.payouts.map(x=>[x.type,x.who||"",x.grade||"",fmtL(x.litres),fmtR(x.amt)]))}
+${tbl("Tank gauge",["Tank","Opening TC","Closing TC","Gauge mm","Stick mm","Water mm"],Object.keys(st.settings.tanks).map(t=>[t,fmtL(d.tanks.open[t]),fmtL(d.tanks.close[t]),d.tanks.dip[t]?.gaugeMm??"",d.tanks.dip[t]?.stickMm??"",d.tanks.water[t]??""]))}
+${tbl("Deliveries",["Tank","Truck meter","Gauge increase"],d.deliveries.map(x=>[x.tank,fmtL(x.truck),fmtL(x.gauge)]))}
+${tbl("Delivery notes",["Note","Grade","Loaded","Returned"],d.deliveryNotes.map(x=>[x.ref||"",x.grade,fmtL(x.bol),fmtL(x.returned)]))}
+${tbl("History",["When","What","Note","Changes"],(d.events||[]).map(e=>[new Date(e.at).toLocaleString("en-ZA"),e.action,e.note||"",(e.changes||[]).map(x=>`${pathLabel(x.f)}: ${fmtVal(x.f,x.from)} → ${fmtVal(x.f,x.to)}`).join("; ")]))}
+<p style="margin-top:18px;color:#666">Generated ${esc(new Date().toLocaleString("en-ZA"))}. Open in a browser and print to PDF for the file.</p></body></html>`;
+  saveFile(`shift-pack-${st.curId}.html`, html);
+}
+
+/* ---------- Reports ---------- */
+function monthIds(m){ return Object.keys(st.shifts).filter(id=>id.startsWith(m)).sort(); }
+/** Open unpaids per customer: payments clear the oldest unpaid first. */
+function unpaidLedger(){
+  const ids = Object.keys(st.shifts).sort(), books = new Map();
+  const book = (who, staff) => { const k=(staff?"s|":"c|")+norm(who); if(!books.has(k)) books.set(k,{who:String(who).trim(), staff, lines:[], paid:0}); return books.get(k); };
+  for (const id of ids){ const d=st.shifts[id];
+    for (const u of d.unpaids||[]) if (typeof u.amt==="number" && String(u.who||"").trim()) book(u.who, u.kind==="staff-overfill").lines.push({date:d.date, left:u.amt});
+    for (const p of d.unpaidPaid||[]) if (typeof p.amt==="number" && String(p.who||"").trim()){
+      const b = books.get("c|"+norm(p.who)) || books.get("s|"+norm(p.who)) || book(p.who,false);
+      let left=p.amt; for (const l of b.lines){ if(!left) break; const t=Math.min(l.left,left); l.left-=t; left-=t; } b.paid+=p.amt; b.over=(b.over||0)+left; } }
+  const unmatched = [...books.values()].filter(b=>b.over>0).map(b=>({who:b.who, amt:b.over}));
+  const today = st.day || todaySAST();
+  const rows = [...books.values()].map(b=>{ const open=b.lines.reduce((a,l)=>a+l.left,0); const oldest=b.lines.find(l=>l.left>0); return {who:b.who, staff:b.staff, open, lines:b.lines.filter(l=>l.left>0).length, oldest:oldest?oldest.date:null, age:oldest?daysBetween(oldest.date,today):null}; })
+    .filter(r=>r.open!==0).sort((a,b)=>b.open-a.open);
+  return {customers: rows.filter(r=>!r.staff), staff: rows.filter(r=>r.staff), unmatched};
+}
+function reportPanel(title, hint, head, rows, csvName, numCols, classes){
+  return el("div",{class:"panel stack"}, el("div",{class:"row",style:"justify-content:space-between"}, el("h2",{text:title}), rows.length? exportButtons(csvName, head, rows.map(r=>r.map(c=>c&&c.csv!==undefined?c.csv:c))) : null),
+    hint? el("div",{class:"small muted",text:hint}) : null,
+    rows.length? el("div",{class:"tablewrap"}, el("table",{}, el("thead",{},el("tr",{}, head.map((h,i)=>el("th",{class:numCols.includes(i)?"n":"",text:h})))),
+      el("tbody",{}, rows.map((r,ri)=>el("tr",{}, r.map((c,i)=>el("td",{class:[numCols.includes(i)?"n":"", classes?.(ri,i)||""].join(" ").trim(),text:c&&c.text!==undefined?c.text:c==null?"":String(c)}))))))) : el("div",{class:"empty small",text:"Nothing for this month yet."}));
+}
+function renderReports(){
+  if (!st.month) st.month = (st.day||todaySAST()).slice(0,7);
+  $("monthPick").value = st.month;
+  const m = st.month, S=st.settings, out=[];
+  const end = (()=>{ const [y,mo]=m.split("-").map(Number); return new Date(Date.UTC(y,mo,0)).toISOString().slice(0,10); })();
+  const today = todaySAST(), last = end < today || today < m+"-01" ? end : today;
+  // Fuel variance per fuel day
+  const days = fuelSeries(m+"-01", last).filter(x=>x.fd), fRows=[], fCls=[];
+  const sumV={}, sumS={};
+  for (const x of days){ const row=[shortDate(x.date)], cls=[""];
+    for (const g of GRADES){ const y=x.fd.grades.find(z=>z.grade===g);
+      if (y&&y.tank){ sumV[g]=(sumV[g]||0)+y.tank.variance; sumS[g]=(sumS[g]||0)+y.pos; row.push({text:`${sgnL(y.tank.variance)} (${y.tank.pctOfSales.toFixed(2)}%)`, csv:plainL(y.tank.variance)}); cls.push(gradeVarLevel(g,y.tank)); }
+      else { row.push({text:"—",csv:""}); cls.push(""); } }
+    fRows.push(row); fCls.push(cls); }
+  if (days.length){ const row=[{text:"Month to date",csv:"Month to date"}], cls=[""]; for (const g of GRADES){ row.push(sumV[g]!=null?{text:`${sgnL(sumV[g])} (${sumS[g]?(sumV[g]/sumS[g]*100).toFixed(2):"0.00"}%)`,csv:plainL(sumV[g])}:{text:"—",csv:""}); cls.push(""); } fRows.push(row); fCls.push(cls);
+    if (Object.keys(S.prices||{}).some(g=>S.prices[g])){ const row=[{text:"Loss value at pump price",csv:"Value (R)"}]; for (const g of GRADES){ const p=S.prices[g]; row.push(p&&sumV[g]!=null?{text:fmtR(Math.round(sumV[g]*p/100)),csv:plainR(Math.round(sumV[g]*p/100))}:{text:"—",csv:""}); } fRows.push(row); fCls.push(["","","",""]); } }
+  out.push(reportPanel("Fuel variance by fuel day", "Tank gauge TC: opening + delivered − POS sold vs closing. Litres, with % of litres sold.", ["Fuel day",...GRADES.map(g=>GN[g])], fRows, `fuel-variance-${m}`, [1,2,3], (r,i)=>fCls[r]?.[i]));
+  // Cash result per cashier
+  const byC = new Map();
+  for (const id of monthIds(m)){ const d=st.shifts[id], r=evalId(id); if(!r||d.pos?.sales==null) continue;
+    const k=d.cashierName||"(not set)"; if(!byC.has(k)) byC.set(k,{n:0,bal:0,short:0,over:0,worst:0});
+    const b=byC.get(k), so=r.cash.shortOver; b.n++; if(so===0) b.bal++; else if(so>0) b.short+=so; else b.over+=-so; if(Math.abs(so)>Math.abs(b.worst)) b.worst=so; }
+  out.push(reportPanel("Cash result per cashier", "Reconciled shifts this month. Positive net is a shortage.", ["Cashier","Shifts","Balanced","Total short","Total over","Net","Largest"],
+    [...byC.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([k,b])=>[k,b.n,b.bal,{text:fmtR(b.short),csv:plainR(b.short)},{text:fmtR(b.over),csv:plainR(b.over)},{text:fmtR(b.short-b.over),csv:plainR(b.short-b.over)},{text:b.worst>0?"short "+fmtR(b.worst):b.worst<0?"over "+fmtR(-b.worst):"—",csv:plainR(b.worst)}]),
+    `cash-per-cashier-${m}`, [1,2,3,4,5,6]));
+  // Open unpaids
+  const led = unpaidLedger(), ageCls=(a)=>a==null?"":a>30?"bad":a>7?"warn":"";
+  const urow = (x)=>[x.who,{text:fmtR(x.open),csv:plainR(x.open)},x.lines,x.oldest?shortDate(x.oldest):"",x.age??""];
+  out.push(reportPanel("Open unpaids by customer", "All shifts on record. Unpaid paid clears the oldest unpaid first, matched by name.", ["Customer","Open","Lines","Oldest","Days"], led.customers.map(urow), "open-unpaids", [1,2,4], (r,i)=>i===4?ageCls(led.customers[r].age):""));
+  if (led.unmatched.length) out.push(el("div",{class:"small muted",text:"Collected with no matching unpaid on record (unpaids from before the app): "+led.unmatched.map(u=>`${u.who} ${fmtR(u.amt)}`).join(", ")+"."}));
+  out.push(reportPanel("Staff overfills", "", ["Staff member","Open","Lines","Oldest","Days"], led.staff.map(urow), "staff-overfills", [1,2,4]));
+  // Rebates per customer
+  const reb = new Map();
+  for (const id of monthIds(m)){ const d=normalize(st.shifts[id]), r=evalId(id); if(!r) continue;
+    const lines=[...d.payouts.filter(p=>p.type==="customer"),...d.payouts.filter(p=>p.type==="taxi"),...d.payouts.filter(p=>p.type==="bowser")];
+    const checks=r.cash.checks.filter(c=>c.name.startsWith("Rebate rate"));
+    lines.forEach((p,i)=>{ const k=p.type==="taxi"?"Taxi":(p.who||"(no name)"); if(!reb.has(k)) reb.set(k,{n:0,l:0,a:0,bad:0,unchecked:0}); const b=reb.get(k);
+      b.n++; b.l+=p.litres||0; b.a+=p.amt||0; const c=checks[i]; if(c?.status==="mismatch") b.bad++; if(!c||c.status==="not-checked") b.unchecked++; }); }
+  const rebRows=[...reb.entries()].sort((a,b)=>b[1].a-a[1].a);
+  out.push(reportPanel("Rebates paid per customer", "Rate mismatches use the agreed rates in Settings. Lines without an agreed rate are counted as not checked.", ["Customer","Lines","Litres","Paid","Rate mismatches","Not checked"],
+    rebRows.map(([k,b])=>[k,b.n,{text:fmtL(b.l),csv:plainL(b.l)},{text:fmtR(b.a),csv:plainR(b.a)},b.bad,b.unchecked]), `rebates-${m}`, [1,2,3,4,5], (r,i)=>i===4&&rebRows[r][1].bad?"bad":""));
+  // Deliveries
+  const dRows=[], dCls=[];
+  for (const id of monthIds(m)){ const d=normalize(st.shifts[id]), r=evalId(id); if(!r) continue; const lab=shortDate(d.date)+" "+d.period;
+    for (const n of r.fuel.deliveryNotes){ dRows.push([lab, GN[n.grade], "Note", {text:fmtL(n.loaded),csv:plainL(n.loaded)}, {text:fmtL(n.delivered),csv:plainL(n.delivered)}, {text:fmtL(n.returned),csv:plainL(n.returned)}, {text:n.unexplained?sgnL(n.unexplained):"matched",csv:plainL(n.unexplained)}]); dCls.push(n.unexplained?"bad":"good"); }
+    d.deliveries.forEach((x)=>{ const k=r.fuel.deliveries.find(y=>String(y.tank)===String(x.tank)&&Math.abs(y.difference-((x.gauge??0)-x.truck))<1);
+      dRows.push([lab, "Tank "+x.tank+" ("+GN[S.tanks[x.tank]?.grade]+")", "Drop", "", {text:fmtL(x.truck),csv:plainL(x.truck)}, "", {text:k?`gauge ${sgnL(k.difference)} (${k.pct>0?"+":""}${k.pct.toFixed(1)}%)`:"no gauge figure",csv:k?plainL(k.difference):""}]);
+      dCls.push(k? (Math.abs(k.pct)>S.tol.dropPct?"bad":Math.abs(k.pct)>S.tol.dropAmberPct?"warn":"good") : ""); }); }
+  out.push(reportPanel("Delivery history", "Delivery notes: loaded − delivered must equal returned. Drops: gauge increase vs truck meter.", ["Shift","Grade / tank","Line","Loaded","Delivered","Returned","Variance"], dRows, `deliveries-${m}`, [3,4,5,6], (r,i)=>i===6?dCls[r]:""));
+  $("reports").replaceChildren(...out);
+}
+$("monthPick").addEventListener("change",(e)=>{ if(e.target.value){ st.month=e.target.value; renderReports(); }});
+
 /* ---------- Settings ---------- */
 function renderSettings(){
-  const S = clone(st.settings); S.staff=S.staff||[]; S.rates=S.rates||{};
-  const canEdit = st.canEdit && !st.readOnly;
+  const S = clone(st.settings);
+  const canEdit = (st.canEdit || st.isOwner) && !st.readOnly;
   const rateRows = Object.entries(S.rates).map(([k,v])=>{ const [c,g]=k.split("|"); return {customer:c, grade:g==="*"?"":g, rate:v}; });
-  const staffT = el("tbody",{}), rateT = el("tbody",{});
-  const drawStaff = ()=>{ staffT.replaceChildren(...S.staff.map((s,i)=>el("tr",{}, el("td",{}, textInput("st-"+i+"-name",()=>s.name,v=>{s.name=v;},{label:"Name"})), el("td",{}, textInput("st-"+i+"-pos",()=>s.posNo,v=>{s.posNo=v.trim()||undefined;},{label:"POS cashier no.",ph:"none"})),
+  const staffT = el("tbody",{}), rateT = el("tbody",{}), roleT = el("tbody",{}), pumpT = el("tbody",{}), tankT = el("tbody",{});
+  const num = (id, val, cb, label) => { const i=el("input",{id,class:"n",inputmode:"decimal","aria-label":label||null}); i.value=val; i.addEventListener("input",()=>{ cb(i.value); i.classList.toggle("bad", i.value.trim()!=="" && !Number.isFinite(Number(i.value))); }); return i; };
+  const drawStaff = ()=>{ staffT.replaceChildren(...S.staff.map((s,i)=>el("tr",{}, el("td",{}, textInput("st-"+i+"-name",()=>s.name,v=>{s.name=v;},{onChange:noop,label:"Name"})), el("td",{}, textInput("st-"+i+"-pos",()=>s.posNo,v=>{s.posNo=v.trim()||undefined;},{onChange:noop,label:"POS cashier no.",ph:"none",mode:"numeric"})),
     el("td",{}, el("button",{class:"x",onclick:()=>{S.staff.splice(i,1); drawStaff();},"aria-label":"Remove"},"×"))))); };
-  const drawRates = ()=>{ rateT.replaceChildren(...rateRows.map((r,i)=>{ const g=el("select",{id:"rt-"+i+"-g","aria-label":"Grade"}, [["","All grades"],["D50","D50"],["ULP95","ULP 95"],["ULP93","ULP 93"]].map(([v,l])=>el("option",{value:v,text:l}))); g.value=r.grade; g.addEventListener("change",()=>r.grade=g.value);
+  const drawRates = ()=>{ rateT.replaceChildren(...rateRows.map((r,i)=>{ const g=selectInput("rt-"+i+"-g",[["","All grades"],["D50","D50"],["ULP95","ULP 95"],["ULP93","ULP 93"]],()=>r.grade,v=>{r.grade=v;},"Grade",noop);
     const rate=el("input",{id:"rt-"+i+"-r",class:"n",inputmode:"decimal","aria-label":"Rate per litre"}); rate.value=r.rate==null?"":(r.rate/100).toFixed(2); rate.addEventListener("input",()=>{ try{ r.rate=E.rand(rate.value); rate.classList.remove("bad"); }catch(e){ rate.classList.add("bad"); } });
-    return el("tr",{}, el("td",{}, textInput("rt-"+i+"-c",()=>r.customer,v=>{r.customer=v;},{label:"Customer"})), el("td",{},g), el("td",{},rate), el("td",{}, el("button",{class:"x",onclick:()=>{rateRows.splice(i,1); drawRates();},"aria-label":"Remove"},"×"))); })); };
-  drawStaff(); drawRates();
-  const num2 = (id, val, cb) => { const i=el("input",{id,class:"n",inputmode:"decimal"}); i.value=val; i.addEventListener("input",()=>cb(i.value)); return i; };
-  let tcRate = (S.totalCardRebate?.D50 ?? 4585)/1000, taxi=(S.taxiRate??80)/100, red=(S.tol.cashRed??500)/100, pumpPct=S.tol.pumpPct, tankPct=S.tol.tankPct, dropPct=S.tol.dropPct;
-  const saveBtn = el("button",{class:"btn primary",disabled:!canEdit,onclick:async()=>{
+    return el("tr",{}, el("td",{}, textInput("rt-"+i+"-c",()=>r.customer,v=>{r.customer=v;},{onChange:noop,label:"Customer",list:"dl-set-rebate"})), el("td",{},g), el("td",{},rate), el("td",{}, el("button",{class:"x",onclick:()=>{rateRows.splice(i,1); drawRates();},"aria-label":"Remove"},"×"))); })); };
+  const drawRoles = async ()=>{ const ids=Object.keys(S.roles); let ps={}; if (st.user && ids.length){ try{ ps=await st.user.profiles(ids); }catch(e){} }
+    roleT.replaceChildren(...ids.map((id,i)=>el("tr",{}, el("td",{text:(ps[id]?.name)||"Someone"}), el("td",{}, selectInput("rl-"+i,ROLES.map(r=>[r,ROLE_LABEL[r]]),()=>S.roles[id],v=>{S.roles[id]=v;},"Role",noop)),
+      el("td",{}, el("button",{class:"x",onclick:()=>{ delete S.roles[id]; drawRoles(); },"aria-label":"Remove"},"×"))))); if(!canEdit) roleT.querySelectorAll("select,button").forEach(x=>x.disabled=true); };
+  const drawPumps = ()=>{ pumpT.replaceChildren(...Object.keys(S.pumps).sort((a,b)=>a-b).map(p=>el("tr",{}, el("td",{text:"Pump "+p}), el("td",{}, selectInput("pp-"+p,GRADE_REQ().map(([v])=>[v,GN[v]]),()=>S.pumps[p],v=>{S.pumps[p]=v;},"Grade",noop)),
+    el("td",{}, el("button",{class:"x",onclick:()=>{ delete S.pumps[p]; drawPumps(); },"aria-label":"Remove pump"},"×"))))); };
+  const drawTanks = ()=>{ tankT.replaceChildren(...Object.keys(S.tanks).sort((a,b)=>a-b).map(t=>el("tr",{}, el("td",{text:"Tank "+t}), el("td",{}, selectInput("tk-"+t+"-g",GRADE_REQ().map(([v])=>[v,GN[v]]),()=>S.tanks[t].grade,v=>{S.tanks[t].grade=v;},"Grade",noop)),
+    el("td",{}, num("tk-"+t+"-c",String(S.tanks[t].capacity),v=>{S.tanks[t].capacity=Number(v);},"Capacity litres")),
+    el("td",{}, el("button",{class:"x",onclick:()=>{ delete S.tanks[t]; drawTanks(); },"aria-label":"Remove tank"},"×"))))); };
+  drawStaff(); drawRates(); drawRoles(); drawPumps(); drawTanks();
+  const T=S.tol, v = {taxi:(S.taxiRate??80)/100, red:(T.cashRed??500)/100, pumpPct:T.pumpPct, tankPct:T.tankPct, dropPct:T.dropPct, dropAmberPct:T.dropAmberPct, dipAmberMm:T.dipAmberMm, dipRedMm:T.dipRedMm,
+    tankLowAmberPct:T.tankLowAmberPct, tankLowRedPct:T.tankLowRedPct, safeFill:S.safeFillPct??90, lead:S.orderLeadDays??1};
+  const tc = {}; for (const g of GRADES) tc[g] = S.totalCardRebate?.[g]!=null ? String(S.totalCardRebate[g]/1000) : "";
+  const pr = {}; for (const g of GRADES) pr[g] = S.prices?.[g]!=null ? (S.prices[g]/100).toFixed(2) : "";
+  const listArea = (id, xs) => { const t=el("textarea",{id,"aria-label":id}); t.value=(xs||[]).join("\n"); return t; };
+  const accArea = listArea("set-accounts", S.accounts), rebArea = listArea("set-rebaters", S.rebateCustomers);
+  let search=null;
+  if (st.user && canEdit){
+    const q=el("input",{id:"roleSearch",type:"search",placeholder:"Type a name","aria-label":"Find a person"}), res=el("div",{class:"row",id:"roleResults"});
+    const run = async ()=>{ let hits=[]; try{ hits=await st.user.search(q.value); }catch(e){}
+      res.replaceChildren(...hits.filter(h=>!S.roles[h.id]).slice(0,8).map(h=>el("button",{class:"btn small",onclick:()=>{ S.roles[h.id]="cashier"; q.value=""; res.replaceChildren(); drawRoles(); }}, "Add "+(h.name||"Someone")))); };
+    q.addEventListener("input", run); q.addEventListener("focus", run);
+    search = el("div",{class:"stack",style:"gap:6px"}, field("Add a person", q), res);
+  }
+  const N = (x) => x===""||x==null ? NaN : Number(x);
+  const saveBtn = el("button",{class:"btn primary",id:"saveSettings",disabled:!canEdit,onclick:async()=>{
     const rates={}; for (const r of rateRows) if(r.customer.trim() && r.rate!=null) rates[`${r.customer.trim()}|${r.grade||"*"}`]=r.rate;
-    const out = {...S, rates, staff:S.staff.filter(s=>s.name&&s.name.trim()), taxiRate:Math.round(Number(taxi)*100), totalCardRebate:{D50:Math.round(Number(tcRate)*1000)},
-      tol:{cashAmber:0, cashRed:Math.round(Number(red)*100), pumpPct:Number(pumpPct), tankPct:Number(tankPct), dropPct:Number(dropPct)}};
-    if ([out.taxiRate,out.totalCardRebate.D50,out.tol.cashRed,out.tol.pumpPct,out.tol.tankPct,out.tol.dropPct].some(x=>!Number.isFinite(x))){ banner("Some settings are not numbers. Check the fields and save again."); return; }
-    try{ await st.db.doc("settings/site").set(out); st.settings=out; banner(""); saveBtn.textContent="Saved"; setTimeout(()=>saveBtn.textContent="Save settings",1500); }
-    catch(e){ banner(e.code==="invalid_argument"?"Only Abdul or an Editor can change settings.":"Settings not saved. Try again."); } }},"Save settings");
+    const lines = (t)=>[...new Set(t.value.split("\n").map(s=>s.trim()).filter(Boolean))];
+    const totalCardRebate={}; for (const g of GRADES) if (tc[g]!=="" ) totalCardRebate[g]=Math.round(N(tc[g])*1000);
+    const prices={}; for (const g of GRADES) if (pr[g]!=="") prices[g]=Math.round(N(pr[g])*100);
+    const out = {...S, rates, staff:S.staff.filter(s=>s.name&&s.name.trim()).map(s=>({name:s.name.trim(), ...(s.posNo?{posNo:s.posNo}:{})})),
+      taxiRate:Math.round(N(v.taxi)*100), totalCardRebate, prices, safeFillPct:N(v.safeFill), orderLeadDays:N(v.lead), accounts:lines(accArea), rebateCustomers:lines(rebArea),
+      tol:{cashAmber:0, cashRed:Math.round(N(v.red)*100), pumpPct:N(v.pumpPct), tankPct:N(v.tankPct), dropPct:N(v.dropPct), dropAmberPct:N(v.dropAmberPct), dipAmberMm:N(v.dipAmberMm), dipRedMm:N(v.dipRedMm), tankLowAmberPct:N(v.tankLowAmberPct), tankLowRedPct:N(v.tankLowRedPct)}};
+    const nums=[out.taxiRate,out.safeFillPct,out.orderLeadDays,...Object.values(out.tol),...Object.values(totalCardRebate),...Object.values(prices),...Object.values(out.tanks).map(t=>t.capacity)];
+    if (nums.some(x=>!Number.isFinite(x)||x<0)){ banner("Some settings are not numbers. Check the fields marked red and save again."); return; }
+    try{ await st.db.doc("settings/site").set(out); st.settings=withDefaults(out); evalCache.clear(); banner(""); saveBtn.textContent="Saved"; setTimeout(()=>saveBtn.textContent="Save settings",1500); }
+    catch(e){ banner(e&&e.code==="invalid_argument"?"Only Abdul or an Editor can change settings.":"Settings not saved. Try again."); } }},"Save settings");
+  const nextKey = (o) => String(Math.max(0,...Object.keys(o).map(Number).filter(Number.isFinite))+1);
   $("settingsForm").replaceChildren(
     canEdit? null : el("div",{class:"notice",text:"Only Abdul or an Editor can change settings. You can see them here."}),
+    el("datalist",{id:"dl-set-rebate"}, [...new Set(S.rebateCustomers)].map(x=>el("option",{value:x}))),
+    el("div",{class:"panel stack"}, el("h2",{text:"People and roles"}),
+      el("div",{class:"small muted",text:"Each person's role decides what they can enter and approve (spec section 2). While nobody has a role, everyone with access can do everything except change settings. Abdul and Editors are always Owner / admin."}),
+      el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Person"}),el("th",{text:"Role"}),el("th",{}))), roleT)), search),
     el("div",{class:"panel stack"}, el("h2",{text:"Staff and POS logins"}), el("div",{class:"small muted",text:"Each cashier's own POS cashier number. The app flags any shift where the POS login belongs to someone else."}),
       el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Name"}),el("th",{text:"POS cashier no."}),el("th",{}))), staffT)),
       el("div",{}, el("button",{class:"btn small",onclick:()=>{S.staff.push({name:"",posNo:undefined}); drawStaff();}},"Add person"))),
     el("div",{class:"panel stack"}, el("h2",{text:"Agreed rebate rates"}), el("div",{class:"small muted",text:"Rand per litre. Every rebate line for these customers is checked against this rate (cut to the cent, as the POS does)."}),
       el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Customer (as written on Page 2)"}),el("th",{text:"Grade"}),el("th",{class:"n",text:"R per litre"}),el("th",{}))), rateT)),
       el("div",{}, el("button",{class:"btn small",onclick:()=>{rateRows.push({customer:"",grade:"",rate:null}); drawRates();}},"Add rate")),
-      el("div",{class:"fields"}, field("Taxi rebate, R per litre", num2("set-taxi",taxi.toFixed(2),v=>taxi=v)), field("Total Card rebate, R per litre (diesel)", num2("set-tc",tcRate.toFixed(3),v=>tcRate=v)))),
+      el("div",{class:"fields"}, field("Taxi rebate, R per litre", num("set-taxi",v.taxi.toFixed(2),x=>v.taxi=x)),
+        ...GRADES.map(g=>field(`Total Card rebate ${GN[g]}, R per litre`, num("set-tc-"+g,tc[g],x=>tc[g]=x))))),
+    el("div",{class:"grid2"},
+      el("div",{class:"panel stack"}, el("h2",{text:"Local accounts"}), el("div",{class:"small muted",text:"One per line. Offered when cashiers enter account sales and unpaids."}), accArea),
+      el("div",{class:"panel stack"}, el("h2",{text:"Rebate customers"}), el("div",{class:"small muted",text:"One per line. Offered on the pay outs page."}), rebArea)),
+    el("div",{class:"grid2"},
+      el("div",{class:"panel stack"}, el("h2",{text:"Pumps"}), el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Pump"}),el("th",{text:"Grade"}),el("th",{}))), pumpT)),
+        el("div",{}, el("button",{class:"btn small",onclick:()=>{ S.pumps[nextKey(S.pumps)]="D50"; drawPumps(); }},"Add pump"))),
+      el("div",{class:"panel stack"}, el("h2",{text:"Tanks"}), el("div",{class:"small muted",text:"Capacity in litres, as configured in the tank gauge. Tanks of one grade are reconciled together."}),
+        el("div",{class:"tablewrap"}, el("table",{class:"lines"}, el("thead",{},el("tr",{},el("th",{text:"Tank"}),el("th",{text:"Grade"}),el("th",{class:"n",text:"Capacity (L)"}),el("th",{}))), tankT)),
+        el("div",{}, el("button",{class:"btn small",onclick:()=>{ S.tanks[nextKey(S.tanks)]={grade:"D50",capacity:0}; drawTanks(); }},"Add tank")))),
+    el("div",{class:"panel stack"}, el("h2",{text:"Ordering and prices"}),
+      el("div",{class:"fields"}, field("Order up to (% of capacity)", num("set-fill",String(v.safeFill),x=>v.safeFill=x)), field("Days from order to delivery", num("set-lead",String(v.lead),x=>v.lead=x)),
+        ...GRADES.map(g=>field(`${GN[g]} pump price, R per litre`, num("set-price-"+g,pr[g],x=>pr[g]=x)))),
+      el("div",{class:"small muted",text:"Prices are only used to put a rand value on fuel losses in Reports."})),
     el("div",{class:"panel stack"}, el("h2",{text:"Tolerances"}),
-      el("div",{class:"fields"}, field("Cash red above (R)", num2("set-red",red.toFixed(2),v=>red=v)), field("Pumps vs POS red above (% of sales)", num2("set-pump",String(pumpPct),v=>pumpPct=v)),
-        field("Tank variance amber above (% of sales)", num2("set-tank",String(tankPct),v=>tankPct=v)), field("Delivery gauge vs truck amber above (%)", num2("set-drop",String(dropPct),v=>dropPct=v))),
-      el("div",{class:"small muted",text:"Cash: any difference shows amber; above the red amount it shows red. Tank variance above 0.5% of sales is red."})),
+      el("div",{class:"fields"}, field("Cash red above (R)", num("set-red",v.red.toFixed(2),x=>v.red=x)), field("Pumps vs POS red above (% of sales)", num("set-pump",String(v.pumpPct),x=>v.pumpPct=x)),
+        field("Tank variance amber above (% of sales)", num("set-tank",String(v.tankPct),x=>v.tankPct=x)),
+        field("Delivery gauge vs truck amber above (%)", num("set-dropa",String(v.dropAmberPct),x=>v.dropAmberPct=x)), field("Delivery gauge vs truck red above (%)", num("set-drop",String(v.dropPct),x=>v.dropPct=x)),
+        field("Stick dip vs gauge amber above (mm)", num("set-dipa",String(v.dipAmberMm),x=>v.dipAmberMm=x)), field("Stick dip vs gauge red above (mm)", num("set-dipr",String(v.dipRedMm),x=>v.dipRedMm=x)),
+        field("Tank level amber below (%)", num("set-lowa",String(v.tankLowAmberPct),x=>v.tankLowAmberPct=x)), field("Tank level red below (%)", num("set-lowr",String(v.tankLowRedPct),x=>v.tankLowRedPct=x))),
+      el("div",{class:"small muted",text:"Cash: any difference shows amber; above the red amount it shows red. Tank variance above 0.5% of sales, or a loss 3 fuel days running, is red. Any water in a tank is red."})),
     el("div",{class:"row"}, saveBtn));
+  if (!canEdit) $("settingsForm").querySelectorAll("input,select,textarea,button:not(#saveSettings)").forEach(x=>x.disabled=true);
 }
 
 /* ---------- boot ---------- */
+function rerender(){ if (st.tab==="today") renderToday(); else if (st.tab==="reports") renderReports(); else if (st.tab==="settings") renderSettings();
+  else if (st.tab==="shift" && st.doc && !st.dirty && !st.saving){ renderStatus(); applyLock(); refresh(); } }
 async function boot(){
+  const C = window.claude;
   const fallback = setTimeout(()=>{ if(!st.db){ $("dayCards").replaceChildren(el("div",{class:"panel empty",text:"Sign in to claude.ai to see and enter shifts."})); } }, 11000);
-  const [db,user,assets] = await Promise.all([window.claude?.use("db"), window.claude?.use("user"), window.claude?.use("assets")]);
+  const [db,user,assets,downloads] = await Promise.all(["db","user","assets","downloads"].map(n=>C&&C.use? C.use(n).catch(()=>null) : null));
   clearTimeout(fallback);
-  st.db=db; st.user=user; st.assets=assets||null;
+  st.db=db; st.user=user; st.assets=assets||null; st.downloads=downloads||null;
   if (!db){ $("dayCards").replaceChildren(el("div",{class:"panel empty",text:"Sign in to claude.ai to see and enter shifts."})); banner("Shift records are not available in this view."); return; }
-  if (user){ st.me = await user.id(); st.canEdit = await user.canEdit(); const w = await user.can("data.write"); if (w===false){ st.readOnly=true; banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); } }
-  db.doc("settings/site").onSnapshot((s)=>{ if(s.exists){ st.settings = Object.assign(clone(DEFAULT_SETTINGS), s.data()); } st.settingsLoaded=true; if(st.tab==="settings") renderSettings(); else if(st.tab==="today") renderToday(); }, (e)=>console.error(e));
+  if (user){ try{ st.me = await user.id(); st.isOwner = await user.isOwner(); st.canEdit = await user.canEdit(); }catch(e){}
+    if (typeof user.can==="function"){ try{ if (await user.can("data.write")===false){ st.readOnly=true; banner("You can view shifts but not change them. Ask Abdul to give you Contributor access."); } }catch(e){} } }
+  let gotSettings=false, gotShifts=false;
+  const ready = ()=>{ if (gotSettings && gotShifts && !st.loaded){ st.loaded=true; checkPending(); } };
+  db.doc("settings/site").onSnapshot((s)=>{ st.settings = withDefaults(s.exists? s.data() : {}); evalCache.clear(); gotSettings=true; ready(); rerender(); }, (e)=>{ console.error(e); gotSettings=true; ready(); });
   db.collection("shifts").orderBy("date","desc").limit(400).onSnapshot((snap)=>{
     const next={}; for (const d of snap.docs) next[d.id]=d.data();
-    if (st.curId && st.dirty && st.doc) next[st.curId]=clone(st.doc); // keep unsaved local edits
-    st.shifts=next;
-    if (st.tab==="today") renderToday();
+    if (st.curId && (st.dirty||st.saving) && st.doc) next[st.curId]=clone(st.doc); // keep unsaved local edits
+    st.shifts=next; gotShifts=true; ready();
     if (st.tab==="shift" && st.curId && next[st.curId] && !st.dirty && !st.saving){
       const incoming = normalize(next[st.curId]);
-      if (JSON.stringify(incoming)!==JSON.stringify(st.doc)){ st.doc=incoming; const a=document.activeElement?.id; buildForm(); if(a&&$(a)) $(a).focus(); }
-    }
+      if (JSON.stringify(incoming)!==JSON.stringify(st.doc)){ st.doc=incoming; st.auditBase=clone(incoming); st.baseSavedAt=incoming.savedAt||null; const a=document.activeElement?.id; buildForm(); if(a&&$(a)) $(a).focus(); }
+    } else rerender();
   }, (e)=>{ console.error(e); banner("Lost the connection to shift records. Reload the page."); });
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flush(); });
